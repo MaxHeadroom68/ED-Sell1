@@ -22,9 +22,7 @@
 Pause::togglePause		; make sure to be on the SELL COMMODITY screen when you un-pause
 #HotIf
 
-; keys (and mouse buttons) we send to Elite via SendEvent(), to navigate around the UI
-; available keys are listed in https://www.autohotkey.com/docs/v2/KeyList.htm
-k := {up: "w", down: "s", left: "a", right: "d", select: "Space", click: "LButton", cancel: "RButton"}
+k := {up: "w", down: "s", left: "a", right: "d", select: "Space", click: "LButton", cancel: "RButton"}	; see readKeysConfig() below to customize
 
 ; TODO: figure out what's up with the reported cursor xy not matching the window
 
@@ -100,6 +98,17 @@ zeroButton(btn){					; zero the button coordinates & colors
 }
 buttonsAreInitialized(){
 	return (sellTab.x && sellButton.x)
+}
+
+; If you use Dvorak/Colemak/etc, you can change the keys (and mouse buttons) we use to navigate around the UI
+; In %APPDATA%\Sell1\config.ini add a line "[EDkeys]" to start the section, then add lines like "up=w", "down=s", etc.
+; Available keys are listed in https://www.autohotkey.com/docs/v2/KeyList.htm
+; Detailed info on the format of config.ini is at https://www.autohotkey.com/docs/v2/lib/IniRead.htm
+readKeysConfig() {	
+	global k
+	for keyName in ["up", "down", "left", "right", "select", "click", "cancel"] {
+		k.%keyName% := IniRead(config.file, "EDkeys", keyName, k.%keyName%)
+	}
 }
 
 ; debugging convenience
@@ -210,6 +219,7 @@ while (!buttonsAreInitialized()) {
 }
 activateEDWindow()
 
+readKeysConfig()
 
 ; Luminance = (0.2126 * R + 0.7152 * G + 0.0722 * B)
 requestMouseXY(btn, msg := "") {
@@ -377,7 +387,6 @@ S1WaitForColor(btn, col, sec){
   return result
 }
 
-; TODO NOW: check all callers for key* replacement
 SendAndWaitForColor(msg, btn, col, sec, tries){
   thisTry := 0
   static retries := 0
@@ -422,14 +431,13 @@ smallSales(SellBy){
   SetKeyDelay 125, 75
   if !VerifyStartingPosition()
 	return beepExit
-  ;sellCountStr := strRepeat("d", SellBy)
   sellCountStr := strRepeat("{" k.right "}", SellBy)
   while true {
-	sellKey := (testMode) ? ("{" k.cancel "}") : ("{" k.select "}")			; testMode is true for testing, false for actually selling
+	sellKey := (testMode) ? ("{" k.cancel "}") : ("{" k.select "}")					; testMode is true for testing, false for actually selling
 	timekeeper(sold)
 	; TODO: check focus is on Elite Dangerous, otherwise break
 	; to differentiate them for debugging, each button/color/seconds tuple should be unique.  it's displayed on the 2nd-from-bottom line in the gui
-	if (S1WaitForColor(sellButton, "cSFocusZero", 0))							; nothing left, we're done!
+	if (S1WaitForColor(sellButton, "cSFocusZero", 0))								; nothing left, we're done!
 	  return beepDone()
 	if (!SendAndWaitForColor("", sellButton, "cSFocus", 4, 0))
 	  break
