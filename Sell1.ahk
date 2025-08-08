@@ -17,10 +17,10 @@
 #HotIf WinActive("ahk_class FrontierDevelopmentsAppWinClass")
 ^!F8::smallSales(1)
 ^!F7::smallSales(2)		; SmallSales will take any number you like, but keep it small or it'll be slow
-^!F9:: Send('{w up}{a up}{s up}{d up}{Space up}'), Reload(), SoundBeep(2000, 500)  ; Reload the script  [shamelessly stolen from OB]
+^!F9:: Send("{" k.up " up}{" k.down " up}{" k.left " up}{" k.right " up}{" k.select " up}"), Reload(), SoundBeep(2000, 500)  ; Reload the script  [shamelessly stolen from OB]
 ^!F10::initButtons()	; ask where the buttons are, figure out the colors
 Pause::togglePause		; make sure to be on the SELL COMMODITY screen when you un-pause
-#HotIf
+#HotIf 
 
 k := {up: "w", down: "s", left: "a", right: "d", select: "Space", click: "LButton", cancel: "RButton"}	; see readKeysConfig() below to customize
 
@@ -130,7 +130,7 @@ sellTab := {				; coordinates and colors for the SELL tab in the commodities mar
 	name: "sellTab", x: 0, y: 0, val: 0, lum: 0,
 	cSFocus:	0,			; colorSelectedFocus		-- focus is on the sell tab
 	cSNoFocus:	0,			; colorSelectedNoFocus		-- selected (vs buy) but focus is elsewhere
-	cSFocusDim:	0			; colorSelectedFocusDim		-- selected & has focus, but sell-item overlay dims the layer below
+	cSFocusDim:	0			; colorSelectedFocusDim	-- selected, not in focus, and sell-item overlay dims this layer  (yup, should be named cSNoFocusDim.  oh well, too late now)
 	; good values for 1920x1080: x: 180, y: 420
 	; values for stock UI colors: cSFocus: 0xFF6F00, cSNoFocus: 0x4E2302, cSFocusDim: 0x1F0E01
 	; texture means we gotta find the brightest pixel, look at 4 vertically stacked pixels for the brightest one
@@ -460,7 +460,7 @@ smallSales(SellBy){
 	GuiCtrlSold.Text := (sold += SellBy)
 	if (!SendAndWaitForColor(sellKey, sellTab, "cSNoFocus", 4, 3))					; sell and wait for the sell window to go away, revealing sellTab without the dimming
 	  break
-	if (!SendAndWaitForColor("{" k.select "}", sellTab, "cSFocusDim", 4, 3))		; select the commodity from the list ;TODO this should be called cSNoFocusDim
+	if (!SendAndWaitForColor("{" k.select "}", sellTab, "cSFocusDim", 4, 3))		; select the commodity from the list
 	  break
 	if PauseOperation {
 	  timekeeper("pause")
