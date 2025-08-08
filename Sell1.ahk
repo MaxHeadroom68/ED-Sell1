@@ -22,6 +22,14 @@
 Pause::togglePause		; make sure to be on the SELL COMMODITY screen when you un-pause
 #HotIf
 
+keyUp := "w"
+keyDown := "s"
+keyLeft := "a"
+keyRight := "d"
+keySpace := "Space"
+keyLMouse := "LButton"
+keyRMouse := "RButton"
+
 ; TODO: figure out what's up with the reported cursor xy not matching the window
 
 ;logFileObj := FileOpen("ED-Sell1.log", "a")
@@ -167,7 +175,7 @@ handleTestMode(*) {												; whichever radio button is clicked, we read the 
 	writeConfigVar("testMode", testMode ? "1" : "0")			; write to config
 	activateEDWindow()
 }
-setTestMode(mode){
+setTestMode(mode){		; TODO use default value := 1
 	GuiCtrlTestMode.Value := (mode ? 1 : 0)
 	handleTestMode()
 }
@@ -265,17 +273,18 @@ initButtons(){
 	activateEDWindow()
 	requestMouseXY(zeroButton(sellTab))
 	sellTab.cSFocus := PixelGetColor(sellTab.x, sellTab.y)
-	SendEvent("d")
+	SendEvent("{" keyRight "}")
 	sellTab.cSNoFocus := PixelGetColor(sellTab.x, sellTab.y)
-	SendEvent("{Space}")
+	SendEvent("{" keySpace "}")
 	sellTab.cSFocusDim := PixelGetColor(sellTab.x, sellTab.y)
 	sleep 1000
-	SendEvent("{RButton}")
+	SendEvent("{" keyRMouse "}")
 	buttonMsgBox(sellTab, "sellTab LATE`n")
 
 	initGui.Hide()
 	MsgBox("So far so good.  Now, click on a commodity`n"
-		"that you have AT LEAST ONE TON OF in your ship's hold`n`n"
+		"that you have AT LEAST ONE TON OF in your ship's hold`n"
+		"so you're looking at the SELL COMMODITY screen`n`n"
 		"and get set up to sell ZERO TONS of it`n"
 		'(so the amount shows something like "0/720" )`n`n'
 		'Also, open up the "More Info" sidebar, if you have it closed.`n'
@@ -294,14 +303,14 @@ initButtons(){
 	requestMouseXY(zeroButton(sellButton))
 	initGui.Flash(false)
 	sellButton.cSFocusZero := PixelGetColor(sellButton.x, sellButton.y)
-	SendEvent("w")
+	SendEvent("{" keyUp "}")			;SendEvent("w")
 	sellButton.cSNoFocusZero := PixelGetColor(sellButton.x, sellButton.y)
-	SendEvent("d")
+	SendEvent("{" keyRight "}")			;SendEvent("d")
 	sellButton.cSNoFocus := PixelGetColor(sellButton.x, sellButton.y)
-	SendEvent("s")
+	SendEvent("{" keyDown "}")			;SendEvent("s")
 	sellButton.cSFocus := PixelGetColor(sellButton.x, sellButton.y)
 	sleep 1000
-	SendEvent("{RButton}")
+	SendEvent("{" keyRMouse "}")			;SendEvent("{RButton}")
 	buttonMsgBox(sellButton, "sellButton LATE`n")
 	setTestMode(true)			;might not already be true, if this isn't the first time
 	writeButtonConfig(sellTab)
@@ -372,6 +381,7 @@ S1WaitForColor(btn, col, sec){
   return result
 }
 
+; TODO NOW: check all callers for key* replacement
 SendAndWaitForColor(msg, btn, col, sec, tries){
   thisTry := 0
   static retries := 0
@@ -403,7 +413,9 @@ VerifyStartingPosition(){
   MouseMove(edWin.width/2, edWin.height-30)							; put the mouse on the bottom of the ED window, but out of the way
   if (!SendAndWaitForColor("", sellTab, "cSFocusDim", 1, 0))		; gotta start on the "SELL COMMODITY screen" selling your item
 	return false
-  SendEvent "ssaasw"												; get the focus onto the SELL button  
+  ; TODO: include "add 1 to qty" in this sequence, in case someone started with 000/nnn qty
+  ; SendEvent "ssaasw"												; get the focus onto the SELL button
+  SendEvent("{" keyDown "}{" keyDown "}{" keyLeft "}{" keyLeft "}{" keyDown "}{" keyUp "}")
   return true
 }
 
@@ -414,9 +426,10 @@ smallSales(SellBy){
   SetKeyDelay 125, 75
   if !VerifyStartingPosition()
 	return beepExit
-  sellCountStr := strRepeat("d", SellBy)
+  ;sellCountStr := strRepeat("d", SellBy)
+  sellCountStr := strRepeat("{" keyRight "}", SellBy)
   while true {
-	sellKey := (testMode) ? "{RButton}" : "{Space}"								; true for testing, false for actually selling
+	sellKey := (testMode) ? ("{" keyRMouse "}") : ("{" keySpace "}")			; testMode is true for testing, false for actually selling
 	timekeeper(sold)
 	; TODO: check focus is on Elite Dangerous, otherwise break
 	; to differentiate them for debugging, each button/color/seconds tuple should be unique.  it's displayed on the 2nd-from-bottom line in the gui
@@ -424,20 +437,20 @@ smallSales(SellBy){
 	  return beepDone()
 	if (!SendAndWaitForColor("", sellButton, "cSFocus", 4, 0))
 	  break
-	if (!SendAndWaitForColor("{w down}", sellButton, "cSNoFocus", 4, 3))		; cursor up, leave the key pressed  ; technique mentioned in LYR discord.  saves 0.46 seconds per sale at 720t, or 2m45s for a whole load
+	if (!SendAndWaitForColor("{" keyUp " down}", sellButton, "cSNoFocus", 4, 3))		; cursor up, leave the key pressed  ; technique mentioned in LYR discord.  saves 0.46 seconds per sale at 720t, or 2m45s for a whole load
 	  break
-	if (!SendAndWaitForColor("{a down}", sellButton, "cSNoFocusZero", 10, 3))	; cursor left, leave the key pressed, alllll the way to zero
+	if (!SendAndWaitForColor("{" keyLeft " down}", sellButton, "cSNoFocusZero", 10, 3))	; cursor left, leave the key pressed, alllll the way to zero
 	  break
-	SendEvent("{a up}{w up}")													; release left & up.
-	sleep 50									  								; gets its own sleep, because I was having trouble with the next key being seen
-	if (!SendAndWaitForColor(sellCountStr, sellButton, "cSNoFocus", 5, 3))		; cursor right for the number we want to sell; needs a different timeout from the previous SellButton/colorSelectedNoFocus
+	SendEvent("{" keyLeft " up}{" keyUp " up}")										; release left & up.
+	sleep 50									  									; gets its own sleep, because I was having trouble with the next key being seen
+	if (!SendAndWaitForColor(sellCountStr, sellButton, "cSNoFocus", 5, 3))			; cursor right for the number we want to sell; needs a different timeout from the previous SellButton/colorSelectedNoFocus
 	  break
-	if (!SendAndWaitForColor("s", sellButton, "cSFocus", 5, 3))					; down to the sell button; needs a different timeout from the previous SellButton/colorSelectedFocus
+	if (!SendAndWaitForColor("{" keyDown "}", sellButton, "cSFocus", 5, 3))			; down to the sell button; needs a different timeout from the previous SellButton/colorSelectedFocus
 	  break						
 	GuiCtrlSold.Text := (sold += SellBy)
-	if (!SendAndWaitForColor(sellKey, sellTab, "cSNoFocus", 4, 3))				; sell and wait for the sell window to go away, revealing sellTab without the dimming
+	if (!SendAndWaitForColor(sellKey, sellTab, "cSNoFocus", 4, 3))					; sell and wait for the sell window to go away, revealing sellTab without the dimming
 	  break
-	if (!SendAndWaitForColor("{Space}", sellTab, "cSFocusDim", 4, 3))			; select the commodity from the list ;TODO this should be called cSNoFocusDim
+	if (!SendAndWaitForColor("{" keySpace "}", sellTab, "cSFocusDim", 4, 3))		; select the commodity from the list ;TODO this should be called cSNoFocusDim
 	  break
 	if PauseOperation {
 	  timekeeper("pause")
@@ -451,6 +464,7 @@ smallSales(SellBy){
 	  timekeeper("resume")
 	}
   }
+  ;TODO: use timekeeper() to show total time in GuiCtrlPaused.Text
   beepExit()
 }
 
