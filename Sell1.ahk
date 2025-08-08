@@ -17,10 +17,10 @@
 #HotIf WinActive("ahk_class FrontierDevelopmentsAppWinClass")
 ^!F8::smallSales(1)
 ^!F7::smallSales(2)		; SmallSales will take any number you like, but keep it small or it'll be slow
-^!F9:: Send('{w up}{a up}{s up}{d up}{Space up}'), Reload(), SoundBeep(2000, 500)  ; Reload the script  [shamelessly stolen from OB]
+^!F9:: Send("{" k.up " up}{" k.down " up}{" k.left " up}{" k.right " up}{" k.select " up}"), Reload(), SoundBeep(2000, 500)  ; Reload the script  [shamelessly stolen from OB]
 ^!F10::initButtons()	; ask where the buttons are, figure out the colors
 Pause::togglePause		; make sure to be on the SELL COMMODITY screen when you un-pause
-#HotIf
+#HotIf 
 
 k := {up: "w", down: "s", left: "a", right: "d", select: "Space", click: "LButton", cancel: "RButton"}	; see readKeysConfig() below to customize
 
@@ -130,7 +130,7 @@ sellTab := {				; coordinates and colors for the SELL tab in the commodities mar
 	name: "sellTab", x: 0, y: 0, val: 0, lum: 0,
 	cSFocus:	0,			; colorSelectedFocus		-- focus is on the sell tab
 	cSNoFocus:	0,			; colorSelectedNoFocus		-- selected (vs buy) but focus is elsewhere
-	cSFocusDim:	0			; colorSelectedFocusDim		-- selected & has focus, but sell-item overlay dims the layer below
+	cSFocusDim:	0			; colorSelectedFocusDim	-- selected, not in focus, and sell-item overlay dims this layer  (yup, should be named cSNoFocusDim.  oh well, too late now)
 	; good values for 1920x1080: x: 180, y: 420
 	; values for stock UI colors: cSFocus: 0xFF6F00, cSNoFocus: 0x4E2302, cSFocusDim: 0x1F0E01
 	; texture means we gotta find the brightest pixel, look at 4 vertically stacked pixels for the brightest one
@@ -338,25 +338,27 @@ initButtons(){
 	return true
 }
 
-timekeeper(mode){							; not critical to operation, just a little monitoring
-  static startTime := 0
-  static pauseTime := 0
-  if (mode = "pause") {
-	pauseTime := A_TickCount
-  } else if (mode = "resume") {
-	startTime += (A_TickCount - pauseTime)
-  } else if (!mode){
-	startTime := A_TickCount
-  } else {
-	elapsedTime := (A_TickCount - startTime) / mode
-	if(elapsedTime>10000) {
-	  msecs := Mod(elapsedTime, 1000)
-	  t := DateAdd("20000101", elapsedTime/1000, "Seconds")
-	  GuiCtrlPaused.Text := FormatTime(t, "mm:ss") "." Format("{1:04i}", msecs)
-	} else {
-	  GuiCtrlPaused.Text := Format("{1:.4f}", elapsedTime / 1000)
+mmssTime(t){			; time in milliseconds, returns a string in MMmSSs format, or SS.msecs format if t < 60 seconds
+	if (t < 60000) {
+		return Format("{1:.4f}", t/1000)
 	}
-  }
+	secs := Round(t / 1000)
+	return Format("{1:02i}m{2:02i}s", secs / 60, Mod(secs, 60))
+}
+timekeeper(mode){							; not critical to operation, just a little monitoring
+	static startTime := 0
+	static pauseTime := 0
+	if (mode = "pause") {
+		pauseTime := A_TickCount
+	} else if (mode = "resume") {
+		startTime += (A_TickCount - pauseTime)
+	} else if (mode = "final") {
+		GuiCtrlPaused.Text := mmssTime(A_TickCount - startTime)
+	} else if (!mode){
+		startTime := A_TickCount
+	} else {
+		GuiCtrlPaused.Text := mmssTime((A_TickCount - startTime) / mode)
+	}
 }
 
 togglePause(){
@@ -418,9 +420,8 @@ VerifyStartingPosition(){
   MouseMove(edWin.width/2, edWin.height-30)							; put the mouse on the bottom of the ED window, but out of the way
   if (!SendAndWaitForColor("", sellTab, "cSFocusDim", 1, 0))		; gotta start on the "SELL COMMODITY screen" selling your item
 	return false
-  ; TODO: include "add 1 to qty" in this sequence, in case someone started with 000/nnn qty
-  ; SendEvent "ssaasw"												; get the focus onto the SELL button
-  SendEvent("{" k.down "}{" k.down "}{" k.left "}{" k.left "}{" k.down "}{" k.up "}")
+  ; move the cursor to the sell button, then add 1 to the quantity, then move the cursor back to the sell button
+  SendEvent("{" k.down "}{" k.down "}{" k.left "}{" k.left "}{" k.down "}{" k.up "}{" k.up "}{" k.right "}{" k.down "}")
   return true
 }
 
@@ -435,10 +436,15 @@ smallSales(SellBy){
   while true {
 	sellKey := (testMode) ? ("{" k.cancel "}") : ("{" k.select "}")					; testMode is true for testing, false for actually selling
 	timekeeper(sold)
-	; TODO: check focus is on Elite Dangerous, otherwise break
+	if (WinExist("A") != edWin.hwnd) {												; if the ED window isn't on top, we can't do anything
+		MsgBox("Looks like you want control of your computer back, so I'm stopping.")	; this doesn't seem to work, but the test is kicking us out, so I'm calling it a win
+		break
+	}
 	; to differentiate them for debugging, each button/color/seconds tuple should be unique.  it's displayed on the 2nd-from-bottom line in the gui
-	if (S1WaitForColor(sellButton, "cSFocusZero", 0))								; nothing left, we're done!
+	if (S1WaitForColor(sellButton, "cSFocusZero", 0)) {								; nothing left, we're done!
+	  timekeeper("final")
 	  return beepDone()
+	}
 	if (!SendAndWaitForColor("", sellButton, "cSFocus", 4, 0))
 	  break
 	if (!SendAndWaitForColor("{" k.up " down}", sellButton, "cSNoFocus", 4, 3))		; cursor up, leave the key pressed  ; technique mentioned in LYR discord.  saves 0.46 seconds per sale at 720t, or 2m45s for a whole load
@@ -454,7 +460,7 @@ smallSales(SellBy){
 	GuiCtrlSold.Text := (sold += SellBy)
 	if (!SendAndWaitForColor(sellKey, sellTab, "cSNoFocus", 4, 3))					; sell and wait for the sell window to go away, revealing sellTab without the dimming
 	  break
-	if (!SendAndWaitForColor("{" k.select "}", sellTab, "cSFocusDim", 4, 3))		; select the commodity from the list ;TODO this should be called cSNoFocusDim
+	if (!SendAndWaitForColor("{" k.select "}", sellTab, "cSFocusDim", 4, 3))		; select the commodity from the list
 	  break
 	if PauseOperation {
 	  timekeeper("pause")
@@ -468,7 +474,6 @@ smallSales(SellBy){
 	  timekeeper("resume")
 	}
   }
-  ;TODO: use timekeeper() to show total time in GuiCtrlPaused.Text
   beepExit()
 }
 
