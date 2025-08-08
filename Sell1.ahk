@@ -434,7 +434,10 @@ smallSales(SellBy){
   while true {
 	sellKey := (testMode) ? ("{" k.cancel "}") : ("{" k.select "}")					; testMode is true for testing, false for actually selling
 	timekeeper(sold)
-	; TODO: check focus is on Elite Dangerous, otherwise break
+	if (WinExist("A") != edWin.hwnd) {												; if the ED window isn't on top, we can't do anything
+		MsgBox("Looks like you want control of your computer back, so I'm stopping.")	; this doesn't seem to work, but the test is kicking us out, so I'm calling it a win
+		break
+	}
 	; to differentiate them for debugging, each button/color/seconds tuple should be unique.  it's displayed on the 2nd-from-bottom line in the gui
 	if (S1WaitForColor(sellButton, "cSFocusZero", 0))								; nothing left, we're done!
 	  return beepDone()
