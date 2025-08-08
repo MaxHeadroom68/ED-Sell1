@@ -338,25 +338,27 @@ initButtons(){
 	return true
 }
 
-timekeeper(mode){							; not critical to operation, just a little monitoring
-  static startTime := 0
-  static pauseTime := 0
-  if (mode = "pause") {
-	pauseTime := A_TickCount
-  } else if (mode = "resume") {
-	startTime += (A_TickCount - pauseTime)
-  } else if (!mode){
-	startTime := A_TickCount
-  } else {
-	elapsedTime := (A_TickCount - startTime) / mode
-	if(elapsedTime>10000) {
-	  msecs := Mod(elapsedTime, 1000)
-	  t := DateAdd("20000101", elapsedTime/1000, "Seconds")
-	  GuiCtrlPaused.Text := FormatTime(t, "mm:ss") "." Format("{1:04i}", msecs)
-	} else {
-	  GuiCtrlPaused.Text := Format("{1:.4f}", elapsedTime / 1000)
+mmssTime(t){			; time in milliseconds, returns a string in MMmSSs format, or SS.msecs format if t < 60 seconds
+	if (t < 60000) {
+		return Format("{1:.4f}", t/1000)
 	}
-  }
+	secs := Round(t / 1000)
+	return Format("{1:02i}m{2:02i}s", secs / 60, Mod(secs, 60))
+}
+timekeeper(mode){							; not critical to operation, just a little monitoring
+	static startTime := 0
+	static pauseTime := 0
+	if (mode = "pause") {
+		pauseTime := A_TickCount
+	} else if (mode = "resume") {
+		startTime += (A_TickCount - pauseTime)
+	} else if (mode = "final") {
+		GuiCtrlPaused.Text := mmssTime(A_TickCount - startTime)
+	} else if (!mode){
+		startTime := A_TickCount
+	} else {
+		GuiCtrlPaused.Text := mmssTime((A_TickCount - startTime) / mode)
+	}
 }
 
 togglePause(){
@@ -439,8 +441,10 @@ smallSales(SellBy){
 		break
 	}
 	; to differentiate them for debugging, each button/color/seconds tuple should be unique.  it's displayed on the 2nd-from-bottom line in the gui
-	if (S1WaitForColor(sellButton, "cSFocusZero", 0))								; nothing left, we're done!
+	if (S1WaitForColor(sellButton, "cSFocusZero", 0)) {								; nothing left, we're done!
+	  timekeeper("final")
 	  return beepDone()
+	}
 	if (!SendAndWaitForColor("", sellButton, "cSFocus", 4, 0))
 	  break
 	if (!SendAndWaitForColor("{" k.up " down}", sellButton, "cSNoFocus", 4, 3))		; cursor up, leave the key pressed  ; technique mentioned in LYR discord.  saves 0.46 seconds per sale at 720t, or 2m45s for a whole load
@@ -470,7 +474,6 @@ smallSales(SellBy){
 	  timekeeper("resume")
 	}
   }
-  ;TODO: use timekeeper() to show total time in GuiCtrlPaused.Text
   beepExit()
 }
 
