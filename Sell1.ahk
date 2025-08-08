@@ -155,8 +155,10 @@ GuiCtrlTry       := G.Add("Text", "X+0 ys", "00")
 GuiCtrlRetries   := G.Add("Text", "X+0 ys", "0000")
 
 testMode := Integer(readConfigVar("testMode", 1)) ? 1 : 0		; for testing mode, we hit RMouse to cancel rather than Space to sell
-notTestMode := !testMode										; next line can't use an expression, gotta be a variable.  /sigh
-G.Add("Radio", "X9 Y+7 Section Checked" notTestMode, "Sell").OnEvent("Click", handleTestMode)
+{
+	notTestMode := !testMode										; next line can't use an expression, gotta be a variable.  /sigh
+	G.Add("Radio", "X9 Y+7 Section Checked" notTestMode, "Sell").OnEvent("Click", handleTestMode)
+}
 GuiCtrlTestMode := G.Add("Radio", "vtestMode X+3 ys Checked" testMode, "Test")			
 GuiCtrlTestMode.OnEvent("Click", handleTestMode)
 handleTestMode(*) {												; whichever radio button is clicked, we read the value of GuiCtrlTestMode
@@ -164,6 +166,10 @@ handleTestMode(*) {												; whichever radio button is clicked, we read the 
 	testMode := (GuiCtrlTestMode.Value ? 1 : 0)					; set global
 	writeConfigVar("testMode", testMode ? "1" : "0")			; write to config
 	activateEDWindow()
+}
+setTestMode(mode){
+	GuiCtrlTestMode.Value := (mode ? 1 : 0)
+	handleTestMode()
 }
 
 GuiCtrlWaitBtn   := G.Add("Text", "X9 Y+3 Section", "Wait for")
@@ -233,13 +239,15 @@ initButtons(){
 		return false
 	}
 	MsgBox("I'll ask you to click certain places`n"
-		"so I can find out where the buttons are.`n`n"
+		"so I can find out where the buttons are`n`n"
 		"And I'll use the WASD keys to navigate around a bit`n"
-		"so I can find out what the colors are`n"
-		"and I'll move your mouse out of the way.`n`n"
+		"so I can find out what the colors mean`n`n"
+		"And I'll move your mouse out of the way.`n`n"
 		"But don't worry, I won't buy or sell anything`n"
-		"(at least, not intentionally...)`n"
-		"so please don't move your mouse except when I ask you to.`n`n"
+		"(at least, not intentionally...)`n`n"
+		"so please don't move your mouse`n"
+		"or click on anything`n"
+		"except when I ask you to.`n`n"
 		"Click OK when you're ready to start")
 	initGui := Gui("+Resize AlwaysOnTop", "Show me the SELL tab")
 	initGui.SetFont("s12")
@@ -269,13 +277,13 @@ initButtons(){
 	MsgBox("So far so good.  Now, click on a commodity`n"
 		"that you have AT LEAST ONE TON OF in your ship's hold`n`n"
 		"and get set up to sell ZERO TONS of it`n"
-		"(so the amount shows something like `"0/720`" )`n`n"
-		"Also, open up the `"More Info`" sidebar, if you have it closed.`n"
+		'(so the amount shows something like "0/720" )`n`n'
+		'Also, open up the "More Info" sidebar, if you have it closed.`n'
 		"(We'll choose a pixel that'll work later if it's open or closed)`n`n"
 		"Click OK when you're ready")
 	activateEDWindow()
 	initGui.Title := "Show me the SELL button"
-	txt.Text := ("selling ZERO TONS, right?  `"0/nnn`" or similar?`n`n"
+	txt.Text := ('selling ZERO TONS, right?  "0/nnn" or similar?`n`n'
 	"Find an open spot of color (well, probably grayish)`n"
 		"    towards the upper-right corner of the SELL button`n`n"
 		"Go ahead and click there now")
@@ -295,17 +303,23 @@ initButtons(){
 	sleep 1000
 	SendEvent("{RButton}")
 	buttonMsgBox(sellButton, "sellButton LATE`n")
+	setTestMode(true)			;might not already be true, if this isn't the first time
 	writeButtonConfig(sellTab)
 	writeButtonConfig(sellButton)
 	initGui.Hide()
 	MsgBox("You're all set up!`n`n"
 		"See the tiny " config.appName " window?  Feel free to move it.`n"
 		"You're in `"Test`" mode now, so you can try out selling with no risk.`n"
-		"When you want to start selling for real, switch from `"Test`" to `"Sell`".`n"
+		'When you want to start selling for real, switch from "Test" to "Sell".`n'
 		"(But not while I'm running, that'll get messy.  Hit Pause or Ctl-Alt-F9 first.)`n`n"
-		"Remember to get onto the SELL COMMODITY screen`n"
-		"and press Ctl-Alt-F8 to start selling 1 ton at a time.`n`n"
-		"Enjoy your 1-ton selling adventures.")
+		"Remember, when you want to start selling:`n"
+		"- get onto the SELL COMMODITY screen`n"
+		'- quantity should be something like "720/720"`n'
+		"- press Ctl-Alt-F8 to start selling 1 ton at a time`n`n"
+		"To pause, press Pause.  To resume (aka un-pause):`n"
+		"- get onto the SELL COMMODITY screen`n"
+		"- press Pause.`n`n"
+		"Enjoy your 1-ton selling adventures")
 	return true
 }
 
