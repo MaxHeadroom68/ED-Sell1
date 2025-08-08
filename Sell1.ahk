@@ -418,9 +418,8 @@ VerifyStartingPosition(){
   MouseMove(edWin.width/2, edWin.height-30)							; put the mouse on the bottom of the ED window, but out of the way
   if (!SendAndWaitForColor("", sellTab, "cSFocusDim", 1, 0))		; gotta start on the "SELL COMMODITY screen" selling your item
 	return false
-  ; TODO: include "add 1 to qty" in this sequence, in case someone started with 000/nnn qty
-  ; SendEvent "ssaasw"												; get the focus onto the SELL button
-  SendEvent("{" k.down "}{" k.down "}{" k.left "}{" k.left "}{" k.down "}{" k.up "}")
+  ; move the cursor to the sell button, then add 1 to the quantity, then move the cursor back to the sell button
+  SendEvent("{" k.down "}{" k.down "}{" k.left "}{" k.left "}{" k.down "}{" k.up "}{" k.up "}{" k.right "}{" k.down "}")
   return true
 }
 
