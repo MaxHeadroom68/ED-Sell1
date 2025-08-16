@@ -9,6 +9,8 @@
 ; - if there's a lag spike or the server loses a keypress, it'll verify it's still in the right place and retry (up to 3 times)
 ;   (the "retries=" on the popup is the total number of retries since you hit ^!F8), "try=" is how many of the 3 retries you're on
 ; - if you want an option to sell other size lots (like 2, or 8), edit the ^!F7 line below
+; - you can get faster sales and better reliability by descending into the hangar before selling
+;   since your game client doesn't have to think about all those other ships flying around
 ; - if you're having a hard time making this work well, AHK comes with WindowSpy to look at pixel locations and colors,
 ;   and you can edit %APPDATA%\config.ini to change locations of the pixels we're looking at, and the colors we're looking for
 ;   but you shouldn't need to do that, and I'd love it if you could let me know by filing an issue on GitHub
@@ -24,7 +26,11 @@ Pause::togglePause		; make sure to be on the SELL COMMODITY screen when you un-p
 
 k := {up: "w", down: "s", left: "a", right: "d", select: "Space", click: "LButton", cancel: "RButton"}	; see readKeysConfig() below to customize
 
-; TODO: figure out what's up with the reported cursor xy not matching the window
+;TODO: put version number in the config.ini, rename cSFocusDim to cSNoFocusDim
+;TODO: simple log rotation
+;TODO: track for each button/color/seconds tuple -- delay from keys sent to color seen, and retries, and display it in an optional debug window
+;TODO: add an advisory in setup, to drop into the hangar for faster & more reliable sales
+;TODO: figure out what's up with the reported cursor xy not matching the window
 
 ;logFileObj := FileOpen("ED-Sell1.log", "a")
 ;loggit := (str) => logFileObj.WriteLine(FormatTime(, "yyyyMMdd ddd HH:mm:ss> ") str)
@@ -36,6 +42,7 @@ beepDone := () => (SoundBeep(500, 250), SoundBeep(500, 50), SoundBeep(523, 1000)
 debugMode := false
 testMode := true		; set to true when you're getting set up, so we hit RMouse to cancel, rather than spacebar to actually sell the goods
 PauseOperation := false
+timing := {interKey: 125, keyDuration: 75, extraSellWait: 50, retryMult: 1, retries: 4}		; see readTimingConfig() below, to make timing more or less aggressive
 edWin := {x: 0, y: 0, width: 0, height: 0, hwnd: 0}		; Elite Dangerous window
 
 if (edWin.hwnd := WinExist("ahk_exe EliteDangerous64.exe")){
@@ -108,6 +115,19 @@ readKeysConfig() {
 	global k
 	for keyName in ["up", "down", "left", "right", "select", "click", "cancel"] {
 		k.%keyName% := IniRead(config.file, "EDkeys", keyName, k.%keyName%)
+	}
+}
+
+; in %APPDATA%\Sell1\config.ini, create a [Timing] section, then you can set:
+; interkey			time between key presses
+; keyDuration		how long to hold down each key
+; extraSellWait		extra wait before the sell button is pressed
+; retryMult			multiply the hard-coded delay between retries by this factor, default is 1
+; retries			number of retries to do before giving up
+readTimingConfig() {
+	global timing
+	for keyName in ["interKey", "keyDuration", "extraSellWait", "retryMult", "retries"] {
+		timing.%keyName% := IniRead(config.file, "Timing", keyName, timing.%keyName%)
 	}
 }
 
@@ -377,6 +397,7 @@ WaitForColorPS(x, y, c, msec){
   return false
 }
 
+; TODO: rename this, remove the S1
 ; button, color name, seconds.  col is a string so we can display it in the UI
 S1WaitForColor(btn, col, sec){
   GuiCtrlWaitBtn.Text         := btn.name
@@ -385,7 +406,7 @@ S1WaitForColor(btn, col, sec){
   result := WaitForColorPS(btn.x, btn.y, btn.%col%, sec * 1000)
   GuiCtrlSellTabColor.Text    := PixelGetColor(sellTab.x, sellTab.y)
   GuiCtrlSellButtonColor.Text := PixelGetColor(sellButton.x, sellButton.y)
-  sleep 50
+  sleep 50		; TODO remove this delay?
   return result
 }
 
@@ -396,10 +417,11 @@ SendAndWaitForColor(msg, btn, col, sec, tries){
   static oldCol := ""
   loop {
 	GuiCtrlTry.Text := ++thisTry
-	(thisTry>1) ? (GuiCtrlRetries.Text := ++retries) : ""
+	if (thisTry>1)
+		GuiCtrlRetries.Text := ++retries
 	if (msg)
 	  SendEvent msg
-	if (S1WaitForColor(btn, col, sec)) {
+	if (S1WaitForColor(btn, col, (sec * thisTry * timing.retryMult))) {		; rather than delay X times (n=1..X) for s seconds, delay X times for n*s seconds
 	  oldBtn := btn
 	  oldCol := col
 	  return true
@@ -425,42 +447,42 @@ VerifyStartingPosition(){
   return true
 }
 
-smallSales(SellBy){
+smallSales(SellBy){		; SellBy is the number of tons to sell at a time.  TODO needs a better name
   sold := 0
   GuiCtrlRetries := 0
   global PauseOperation
-  SetKeyDelay 125, 75
+  SetKeyDelay timing.interKey, timing.keyDuration
   if !VerifyStartingPosition()
-	return beepExit
+	return beepExit		; should be beepExit(), yes?
   sellCountStr := strRepeat("{" k.right "}", SellBy)
   while true {
-	sellKey := (testMode) ? ("{" k.cancel "}") : ("{" k.select "}")					; testMode is true for testing, false for actually selling
+	sellKey := (testMode) ? ("{" k.cancel "}") : ("{" k.select "}")								; testMode is true for testing, false for actually selling
 	timekeeper(sold)
-	if (WinExist("A") != edWin.hwnd) {												; if the ED window isn't on top, we can't do anything
-		MsgBox("Looks like you want control of your computer back, so I'm stopping.")	; this doesn't seem to work, but the test is kicking us out, so I'm calling it a win
+	if (WinExist("A") != edWin.hwnd) {															; if the ED window isn't on top, we can't do anything
+		MsgBox("Looks like you want control of your computer back, so I'm stopping.")			; this doesn't seem to work, but the test is kicking us out, so I'm calling it a win
 		break
 	}
 	; to differentiate them for debugging, each button/color/seconds tuple should be unique.  it's displayed on the 2nd-from-bottom line in the gui
-	if (S1WaitForColor(sellButton, "cSFocusZero", 0)) {								; nothing left, we're done!
+	if (S1WaitForColor(sellButton, "cSFocusZero", 0)) {											; nothing left, we're done!
 	  timekeeper("final")
 	  return beepDone()
 	}
-	if (!SendAndWaitForColor("", sellButton, "cSFocus", 4, 0))
+	if (!SendAndWaitForColor("", sellButton, "cSFocus", 4, 0))									; verify we're on the sell button, and set the "previous" button/color for the next SendAndWaitForColor
 	  break
-	if (!SendAndWaitForColor("{" k.up " down}", sellButton, "cSNoFocus", 4, 3))		; cursor up, leave the key pressed  ; technique mentioned in LYR discord.  saves 0.46 seconds per sale at 720t, or 2m45s for a whole load
+	if (!SendAndWaitForColor("{" k.up " down}", sellButton, "cSNoFocus", 4, timing.retries))	; cursor up, leave the key pressed  ; technique mentioned in LYR discord.  saves 0.46 seconds per sale at 720t, or 2m45s for a whole load
 	  break
-	if (!SendAndWaitForColor("{" k.left " down}", sellButton, "cSNoFocusZero", 10, 3))	; cursor left, leave the key pressed, alllll the way to zero
+	if (!SendAndWaitForColor("{" k.left " down}", sellButton, "cSNoFocusZero", 10, timing.retries))		; cursor left, leave the key pressed, alllll the way to zero
 	  break
-	SendEvent("{" k.left " up}{" k.up " up}")										; release left & up.
-	sleep 50									  									; gets its own sleep, because I was having trouble with the next key being seen
-	if (!SendAndWaitForColor(sellCountStr, sellButton, "cSNoFocus", 5, 3))			; cursor right for the number we want to sell; needs a different timeout from the previous SellButton/colorSelectedNoFocus
+	SendEvent("{" k.left " up}{" k.up " up}")													; release left & up.  we can't use SendAndWaitForColor here, because nothing changes color
+	sleep timing.extraSellWait					  												; gets its own sleep, because I was having trouble with the next key being seen
+	if (!SendAndWaitForColor(sellCountStr, sellButton, "cSNoFocus", 5, timing.retries))			; cursor right for the number we want to sell; needs a different timeout from the previous SellButton/colorSelectedNoFocus
 	  break
-	if (!SendAndWaitForColor("{" k.down "}", sellButton, "cSFocus", 5, 3))			; down to the sell button; needs a different timeout from the previous SellButton/colorSelectedFocus
+	if (!SendAndWaitForColor("{" k.down "}", sellButton, "cSFocus", 5, timing.retries))			; down to the sell button; needs a different timeout from the previous SellButton/colorSelectedFocus
 	  break						
 	GuiCtrlSold.Text := (sold += SellBy)
-	if (!SendAndWaitForColor(sellKey, sellTab, "cSNoFocus", 4, 3))					; sell and wait for the sell window to go away, revealing sellTab without the dimming
+	if (!SendAndWaitForColor(sellKey, sellTab, "cSNoFocus", 4, timing.retries))					; sell and wait for the sell window to go away, revealing sellTab without the dimming
 	  break
-	if (!SendAndWaitForColor("{" k.select "}", sellTab, "cSFocusDim", 4, 3))		; select the commodity from the list
+	if (!SendAndWaitForColor("{" k.select "}", sellTab, "cSFocusDim", 4, timing.retries))		; select the commodity from the list
 	  break
 	if PauseOperation {
 	  timekeeper("pause")
