@@ -6,6 +6,8 @@
 ; - when you're ready to start selling, switch the radio buttons on the gui from "Test" to "Sell"
 ; - since it's reading the screen colors, if it loses sync it'll just stop rather than going crazy
 ; - no need to tell it how many to sell, it'll empty your hold and stop
+; - if you have a few different commodities in your hold and wish to sell them all,
+;   filter the commodities list to show "in inventory", and start with the top one in the list
 ; - if there's a lag spike or the server loses a keypress, it'll verify it's still in the right place and retry (up to 3 times)
 ;   (the "retries=" on the popup is the total number of retries since you hit ^!F8), "try=" is how many of the 3 retries you're on
 ; - if you want an option to sell other size lots (like 2, or 8), edit the ^!F7 line below
@@ -19,9 +21,9 @@
 #HotIf WinActive("ahk_class FrontierDevelopmentsAppWinClass")
 ^!F8::smallSales(1)
 ^!F7::smallSales(2)		; SmallSales will take any number you like, but keep it small or it'll be slow
-^!F9:: Send("{" k.up " up}{" k.down " up}{" k.left " up}{" k.right " up}{" k.select " up}"), Reload(), SoundBeep(2000, 500)  ; Reload the script  [shamelessly stolen from OB]
+^!F9:: Send("{" k.up " up}{" k.down " up}{" k.left " up}{" k.right " up}{" k.select " up}"), Lw("Reload"), SoundBeep(2000, 500), Reload()  ; Reload the script  [shamelessly stolen from OB]
 ^!F10::initButtons()	; ask where the buttons are, figure out the colors
-Pause::togglePause		; make sure to be on the SELL COMMODITY screen when you un-pause
+Pause::togglePause()	; make sure to be on the SELL COMMODITY screen when you un-pause
 #HotIf 
 
 k := {up: "w", down: "s", left: "a", right: "d", select: "Space", click: "LButton", cancel: "RButton"}	; see readKeysConfig() below to customize
@@ -30,14 +32,20 @@ k := {up: "w", down: "s", left: "a", right: "d", select: "Space", click: "LButto
 ;TODO: simple log rotation
 ;TODO: track for each button/color/seconds tuple -- delay from keys sent to color seen, and retries, and display it in an optional debug window
 ;TODO: add an advisory in setup, to drop into the hangar for faster & more reliable sales
+;TODO: add an advisory in setup, if you have modified your keys, to change them in the config.ini file, then reload the script
+;TODO? write default keys into config.ini if they're not already there, to make it easier to change them
+;TODO? adaptively adjust timing based on frequency of retries, so it gets faster as it learns the timing; only active in testMode, if a configvar is set
+;TODO: add a (config-enabled) line at exit that logs out from the game: cancel cancel cancel esc up select right select ;TODO: add "esc" to k.elements
+;TODO: add comment to readKeysConfig() to point reader to default keys in k definition above
+;TODO: add a GUI line with links to config.ini, log.txt, and ...?
+;TODO: make the input keys (Pause, ^!F8, etc) configurable in config.ini, so you can change them to something else if you like.  How to do that without sacrificing readability?
 ;TODO: figure out what's up with the reported cursor xy not matching the window
 
-;logFileObj := FileOpen("ED-Sell1.log", "a")
-;loggit := (str) => logFileObj.WriteLine(FormatTime(, "yyyyMMdd ddd HH:mm:ss> ") str)
-;loggit("start`n`n")		; doesn't work, /sad  ;TODO or does it?
 strRepeat := (string, times) => strReplace( format( "{:" times "}",  "" ), " ", string )
 beepExit := () => (SoundBeep(523, 250), SoundBeep(500, 250), SoundBeep(523, 250))
 beepDone := () => (SoundBeep(500, 250), SoundBeep(500, 50), SoundBeep(523, 1000))
+Lx := (msg) => OutputDebug(A_ScriptName " " msg)		; log truly heinous errors to the console.  View with DebugView from MS
+Lx("uhhh, everything's under control, situation normal")		; script starting up.  nobody reads the console anyway, right?
 
 debugMode := false
 testMode := true		; set to true when you're getting set up, so we hit RMouse to cancel, rather than spacebar to actually sell the goods
@@ -59,8 +67,8 @@ activateEDWindow() {
 	sleep 50
 }
 
-; Configuration - use config.ini in %APPDATA% to store settings
-config := {fileName: "config.ini", defaultSection: "Settings"}
+; Configuration - store settings in %APPDATA%\SCRIPTNAME\config.ini
+config := {fileName: "config.ini", defaultSection: "Settings", minLogLevel: 0}
 initConfig() {
 	config.appName := RegExReplace(A_ScriptName, "\.[^.]*$")  ; Remove extension
 	config.dir := EnvGet("APPDATA") . "\" . config.appName
@@ -70,8 +78,38 @@ initConfig() {
 	if !FileExist(config.file) {
 		writeConfigVar("testMode", testMode ? "1" : "0")  ; store testMode as 1 or 0
 	}
+	openMode := "a"  ; open logfile in append mode by default
+	localAppData := EnvGet("LocalAppData") || EnvGet("TEMP") || A_Temp
+	config.logdir := localAppData "\" config.appName
+	if !DirExist(config.logdir)
+		DirCreate(config.logdir)
+	config.logFile := config.logdir "\app_" FormatTime(A_Now, "ddd") ".log"  ; Log file named with the current weekday
+	if FileExist(config.logFile) && DateDiff(A_Now, FileGetTime(config.logFile, "M"), "Days") > 2
+		openMode := "w"  ; If the log file is older than 2 days, overwrite it
+	config.logHandle := FileOpen(config.logFile, openMode)  ; Open log file for appending
+	config.minLogLevel := IniRead(config.file, config.defaultSection, "minLogLevel", config.minLogLevel)
 }
 initConfig()
+
+LogLevels := Map("debug", 0, "info", 1, "warn", 2, "error", 3)
+LogMsg(level, message) {
+	global config, LogLevels
+	if !config.logHandle || !LogLevels.Has(level) || LogLevels[level] < config.minLogLevel
+        return
+	timestamp := FormatTime(, "yyyy-MM-dd HH:mm:ss") . "." . Format("{:03d}", Mod(A_TickCount, 1000))
+    logEntry := timestamp " " StrUpper(level) " " message
+    try {
+        config.logHandle.WriteLine(logEntry)
+		config.logHandle.Read(0) ; Flush the buffer to the log file immediately.  (there is no Flush() in v2)
+    } catch Error as e {
+        Lx("LOG ERROR: " e.message " - " logEntry)		; Fallback: at least show in console if file write fails.  NB: DebugView from MS
+    }
+}
+LogMsg("info", "Script started: " A_ScriptName)
+Ld := (msg) => LogMsg("debug", msg)
+L  := (msg) => LogMsg("info", msg)
+Lw := (msg) => LogMsg("warn", msg)
+Le := (msg) => LogMsg("error", msg)
 
 readConfigVar(key, fallback := "") {
 	return IniRead(config.file, config.defaultSection, key, fallback)
@@ -198,6 +236,7 @@ handleTestMode(*) {												; whichever radio button is clicked, we read the 
 	global testMode
 	testMode := (GuiCtrlTestMode.Value ? 1 : 0)					; set global
 	writeConfigVar("testMode", testMode ? "1" : "0")			; write to config
+	Ld("handleTestMode() testMode: " testMode)
 	activateEDWindow()
 }
 setTestMode(mode){		; TODO use default value := 1
@@ -263,6 +302,7 @@ requestMouseXY(btn, msg := "") {
 }
 
 initButtons(){
+	L("Initbuttons() started")
 	SetKeyDelay 1000, 100
 	activateEDWindow()
 	result := MsgBox("To initialize this script (wiping the old config),`n`n"
@@ -342,6 +382,7 @@ initButtons(){
 	writeButtonConfig(sellTab)
 	writeButtonConfig(sellButton)
 	initGui.Hide()
+	L("Initbuttons() finished")
 	MsgBox("You're all set up!`n`n"
 		"See the tiny " config.appName " window?  Feel free to move it.`n"
 		"You're in `"Test`" mode now, so you can try out selling with no risk.`n"
@@ -368,6 +409,7 @@ mmssTime(t){			; time in milliseconds, returns a string in MMmSSs format, or SS.
 timekeeper(mode){							; not critical to operation, just a little monitoring
 	static startTime := 0
 	static pauseTime := 0
+	Ld("timekeeper() mode: " mode)
 	if (mode = "pause") {
 		pauseTime := A_TickCount
 	} else if (mode = "resume") {
@@ -385,6 +427,7 @@ togglePause(){
   global PauseOperation
   PauseOperation := !PauseOperation
   PauseOperation ? (GuiCtrlPaused.Text := "Pausing") : ""
+  L("togglePause() PauseOperation: " PauseOperation)
 }
 
 WaitForColorPS(x, y, c, msec){
