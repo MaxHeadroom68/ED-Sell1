@@ -1,5 +1,6 @@
 #Requires AutoHotkey v2
 #SingleInstance Force
+;#include Object2Str.ahk
 
 ; INSTRUCTIONS:
 ; - This is a script for AutoHotKey v2.  https://www.autohotkey.com/docs/v2/howto/Install.htm
@@ -28,16 +29,17 @@ Pause::togglePause()	; make sure to be on the SELL COMMODITY screen when you un-
 
 k := {up: "w", down: "s", left: "a", right: "d", select: "Space", click: "LButton", cancel: "RButton"}	; see readKeysConfig() below to customize
 
-;TODO: put version number in the config.ini, rename cSFocusDim to cSNoFocusDim
-;TODO: simple log rotation
-;TODO: track for each button/color/seconds tuple -- delay from keys sent to color seen, and retries, and display it in an optional debug window
 ;TODO: add an advisory in setup, to drop into the hangar for faster & more reliable sales
-;TODO: add an advisory in setup, if you have modified your keys, to change them in the config.ini file, then reload the script
-;TODO? write default keys into config.ini if they're not already there, to make it easier to change them
-;TODO? adaptively adjust timing based on frequency of retries, so it gets faster as it learns the timing; only active in testMode, if a configvar is set
-;TODO: add a (config-enabled) line at exit that logs out from the game: cancel cancel cancel esc up select right select ;TODO: add "esc" to k.elements
-;TODO: add comment to readKeysConfig() to point reader to default keys in k definition above
 ;TODO: add a GUI line with links to config.ini, log.txt, and ...?
+;TODO: at top of Instructions, point out the config file, & log file
+;TODO: at top of Instructions, point folks with modified keys to the #HotIf block, k{}, and readKeysConfig()
+;TODO: add comment to readKeysConfig() to point reader to default keys in k definition above
+;TODO: add an advisory in setup, if you have modified your keys, to change them in the config.ini file, then reload the script
+;TODO: add a (config-enabled) line at exit that logs out from the game: cancel cancel cancel esc up select right select ;TODO: add "esc" to k.elements
+;TODO: replace beeps with beepSuccess() and beepError(), and use better riffs
+;TODO: put version number in the config.ini, rename cSFocusDim to cSNoFocusDim
+;TODO? write default keys into config.ini if they're not already there, to make it easier to change them?
+;TODO? adaptively adjust timing based on frequency of retries, so it gets faster as it learns the timing; only active in testMode, if a configvar is set
 ;TODO: make the input keys (Pause, ^!F8, etc) configurable in config.ini, so you can change them to something else if you like.  How to do that without sacrificing readability?
 ;TODO: figure out what's up with the reported cursor xy not matching the window
 
@@ -45,7 +47,7 @@ strRepeat := (string, times) => strReplace( format( "{:" times "}",  "" ), " ", 
 beepExit := () => (SoundBeep(523, 250), SoundBeep(500, 250), SoundBeep(523, 250))
 beepDone := () => (SoundBeep(500, 250), SoundBeep(500, 50), SoundBeep(523, 1000))
 Lx := (msg) => OutputDebug(A_ScriptName " " msg)		; log truly heinous errors to the console.  View with DebugView from MS
-Lx("uhhh, everything's under control, situation normal")		; script starting up.  nobody reads the console anyway, right?
+Lx("uhhh, everything's under control, situation normal")		; script starting up.  (classical reference)
 
 debugMode := false
 testMode := true		; set to true when you're getting set up, so we hit RMouse to cancel, rather than spacebar to actually sell the goods
@@ -68,7 +70,7 @@ activateEDWindow() {
 }
 
 ; Configuration - store settings in %APPDATA%\SCRIPTNAME\config.ini
-config := {fileName: "config.ini", defaultSection: "Settings", minLogLevel: 0}
+config := {fileName: "config.ini", defaultSection: "Settings", minLogLevel: 1}
 initConfig() {
 	config.appName := RegExReplace(A_ScriptName, "\.[^.]*$")  ; Remove extension
 	config.dir := EnvGet("APPDATA") . "\" . config.appName
@@ -79,6 +81,7 @@ initConfig() {
 		writeConfigVar("testMode", testMode ? "1" : "0")  ; store testMode as 1 or 0
 	}
 	openMode := "a"  ; open logfile in append mode by default
+	;openMode := "w"  ; during testing, overwrite the log each time, to keep things tidy
 	localAppData := EnvGet("LocalAppData") || EnvGet("TEMP") || A_Temp
 	config.logdir := localAppData "\" config.appName
 	if !DirExist(config.logdir)
@@ -302,7 +305,7 @@ requestMouseXY(btn, msg := "") {
 }
 
 initButtons(){
-	L("Initbuttons() started")
+	L("configuration started")
 	SetKeyDelay 1000, 100
 	activateEDWindow()
 	result := MsgBox("To initialize this script (wiping the old config),`n`n"
@@ -382,7 +385,7 @@ initButtons(){
 	writeButtonConfig(sellTab)
 	writeButtonConfig(sellButton)
 	initGui.Hide()
-	L("Initbuttons() finished")
+	L("configuration finished")
 	MsgBox("You're all set up!`n`n"
 		"See the tiny " config.appName " window?  Feel free to move it.`n"
 		"You're in `"Test`" mode now, so you can try out selling with no risk.`n"
@@ -397,6 +400,74 @@ initButtons(){
 		"- press Pause.`n`n"
 		"Enjoy your 1-ton selling adventures")
 	return true
+}
+
+; keep some statistics about each of the action steps, so we can see how long they take, how often they retry or fail, etc
+actionStats := Map()							; map of button name, color name, seconds => total duration, min, max, count attempts 1..N
+actionLast := Map()								; map of button name, color name, seconds => duration, last time we logged this action, failMsg, attempts
+actionIds := Array()							; the actions we've seen, in the order we first saw them
+prevAction := {id: "", tick: 0, attempts:0}		; the last action we logged, when (in msec since reboot), and how many times we've tried it
+logAction(btn, col, sec, failMsg:=""){
+	id := (btn ? btn.name : "") "-" col "-" sec, tick := A_TickCount
+	Ld("LogAction() id=" id " failMsg: " failMsg)
+	if (prevAction.id) {
+		if !actionStats.Has(prevAction.id) {									; if this tuple hasn't been seen before, initialize it
+			actionStats[prevAction.id] := {duration:0, min:0, max:0, attempts:Array()}
+			actionStats[prevAction.id].attempts.Default := 0					; so we can increment elements that haven't been set yet
+			actionIds.Push(prevAction.id)										; add id to a list of ids, so we can iterate over it later
+		}
+		duration := tick - prevAction.tick
+		if (duration < 1 || duration > 3600000) {								; a duration over an hour, or not >0, is probably overflow (happens every 42 days) or a bug
+			Lw("logAction() suspicious duration=" duration " for id=" prevAction.id)	; log a warning if duration is suspiciously long or short
+			duration := 0
+		}
+		stat := actionStats[prevAction.id]										; shorthand for the actionStats entry for this action
+		stat.attempts.Length := Max(stat.attempts.Length, prevAction.attempts)	; make sure attempts[] is big enough)
+		loop prevAction.attempts {												; bump those elements of attempts[] that we hit
+			stat.attempts[A_Index]++
+		}
+		if (duration && (prevAction.attempts = 1)) {							; we only collect timing stats on successful first tries
+			stat.duration += duration
+			stat.min := ((stat.min = 0) ? duration : Min(stat.min, duration))
+			stat.max := Max(stat.max, duration)
+		}
+		actionLast[prevAction.id] := {duration:duration, time:prevAction.tick, failMsg:failMsg, attempts:prevAction.attempts}
+	}
+	prevAction.id := id, prevAction.tick := tick, prevAction.attempts := 1		; record the just-started action in prevAction
+}
+logActionRetry(){
+	global prevAction
+	prevAction.attempts++
+	Lw("logActionRetry() id=" prevAction.id " attempts=" prevAction.attempts)
+}
+logActionFinal(){
+	idlen := 0
+	for id in actionIds
+		idlen := Max(idlen, StrLen(id))
+	L("summary statistics:")
+	for id in actionIds {
+		stat := actionStats[id]
+		retries := (stat.attempts.Length>1) ? stat.attempts[2] : 0		; we should be able to use the default value of attempts[2] (aka 0) directly, but it threw an error, so...
+		msg := "id=" Format("{:-" idLen+1 "}", id) "avg=" Format("{:i}", round(stat.duration / (stat.attempts[1] - retries))) .			; avg only counts successful first tries
+			" duration=" stat.duration " min=" stat.min " max=" stat.max " attempts=["
+		loop stat.attempts.Length {
+			msg .= (A_Index>1 ? ", " : "") . stat.attempts[A_Index]
+		}
+		msg .= "]"
+		L(msg)
+	}
+	L("last actions:")
+	for id in actionIds {
+		al := actionLast[id]
+		L("time=" al.time " id=" Format("{:-" idLen+1 "}", id) " duration=" al.duration " msg='" al.failMsg "' attempts=" al.attempts)
+	}
+}
+logActionPause(mode) {
+	static pauseTime := 0
+	if (mode = "pause")
+		pauseTime := A_TickCount
+	if (mode = "resume") && pauseTime && ((A_TickCount - pauseTime) > 0)
+		prevAction.tick += (A_TickCount - pauseTime)	; don't count paused time against the action duration
 }
 
 mmssTime(t){			; time in milliseconds, returns a string in MMmSSs format, or SS.msecs format if t < 60 seconds
@@ -453,15 +524,18 @@ S1WaitForColor(btn, col, sec){
   return result
 }
 
-SendAndWaitForColor(msg, btn, col, sec, tries){
+SendAndWaitForColor(msg, btn, col, sec, maxAttempts){
   thisTry := 0
   static retries := 0
   static oldBtn := ""
   static oldCol := ""
+  logAction(btn, col, sec)
   loop {
 	GuiCtrlTry.Text := ++thisTry
-	if (thisTry>1)
+	if (thisTry>1) {
 		GuiCtrlRetries.Text := ++retries
+		logActionRetry()
+	}
 	if (msg)
 	  SendEvent msg
 	if (S1WaitForColor(btn, col, (sec * thisTry * timing.retryMult))) {		; rather than delay X times (n=1..X) for s seconds, delay X times for n*s seconds
@@ -470,9 +544,12 @@ SendAndWaitForColor(msg, btn, col, sec, tries){
 	  return true
 	} 
 	; if the old (==previous) pixel check fails, we can't try again
-	if(!msg || !oldBtn || !oldCol || !S1WaitForColor(oldBtn, oldCol, 0))
-	  return false
-  } until (thisTry >= tries)
+	if(!msg || !oldBtn || !oldCol || !S1WaitForColor(oldBtn, oldCol, 0)) {
+		logAction(btn, col, sec, "I_GOT_CONFUSED")
+		return false
+	}
+  } until (thisTry >= maxAttempts)
+  logAction(btn, col, sec, "TOO_MANY_RETRIES")
   return false
 }
 
@@ -508,6 +585,8 @@ smallSales(SellBy){		; SellBy is the number of tons to sell at a time.  TODO nee
 	; to differentiate them for debugging, each button/color/seconds tuple should be unique.  it's displayed on the 2nd-from-bottom line in the gui
 	if (S1WaitForColor(sellButton, "cSFocusZero", 0)) {											; nothing left, we're done!
 	  timekeeper("final")
+	  logAction("", "", 0, "successful run")													; write the final action to the log
+	  logActionFinal()																			; write the summary statistics to the log
 	  return beepDone()
 	}
 	if (!SendAndWaitForColor("", sellButton, "cSFocus", 4, 0))									; verify we're on the sell button, and set the "previous" button/color for the next SendAndWaitForColor
@@ -528,17 +607,16 @@ smallSales(SellBy){		; SellBy is the number of tons to sell at a time.  TODO nee
 	if (!SendAndWaitForColor("{" k.select "}", sellTab, "cSFocusDim", 4, timing.retries))		; select the commodity from the list
 	  break
 	if PauseOperation {
-	  timekeeper("pause")
-	  GuiCtrlPaused.Text := "Paused"
+	  timekeeper("pause"), logActionPause("pause"), GuiCtrlPaused.Text := "Paused"
 	  while PauseOperation {
 		sleep 1000
 	  }
 	  if !VerifyStartingPosition()
 		return beepExit()
-	  GuiCtrlPaused.Text := ""
-	  timekeeper("resume")
+	  timekeeper("resume"), logActionPause("resume"), GuiCtrlPaused.Text := ""
 	}
   }
+  logActionFinal()		; write the summary statistics to the log.  something in SendAndWaitForColor() failed, so logAction() already got called with a failure message
   beepExit()
 }
 
