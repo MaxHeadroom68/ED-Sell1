@@ -33,8 +33,6 @@ Pause::togglePause()	; make sure to be on the SELL COMMODITY screen when you un-
 
 k := {up: "w", down: "s", left: "a", right: "d", select: "Space", click: "LButton", cancel: "RButton"}	; see readKeysConfig() below to customize
 
-;TODO: log the number of waits in waitForColorPS(), to prevAction{}
-;TODO: add a GUI line with links to config.ini, log.txt, and ...?
 ;TODO: add a (config-enabled) line at exit that logs out from the game: cancel cancel cancel esc up select right select ;TODO: add "esc" to k.elements
 ;TODO: put version number in the config.ini, rename cSFocusDim to cSNoFocusDim
 ;TODO? write default keys into config.ini if they're not already there, to make it easier to change them?
@@ -51,7 +49,7 @@ beepFailure := () => (SoundBeep(294,400), Sleep(150), SoundBeep(277,500), Sleep(
 Lx := (msg) => OutputDebug(A_ScriptName " " msg)				; log truly heinous errors to the console.  View with DebugView from MS
 Lx("uhhh, everything's under control, situation normal")		; script starting up.  (classical reference)
 
-debugMode := false
+debugMode := false		; used for random things during development
 testMode := true		; set to true when you're getting set up, so we hit RMouse to cancel, rather than spacebar to actually sell the goods
 PauseOperation := false
 timing := {interKey: 125, keyDuration: 75, extraSellWait: 50, retryMult: 1, retries: 4}		; see readTimingConfig() below, to make timing more or less aggressive
@@ -76,6 +74,7 @@ activateEDWindow() {
 ; Configuration - store settings in %APPDATA%\SCRIPTNAME\config.ini
 config := {fileName: "config.ini", defaultSection: "Settings", minLogLevel: 1}
 initConfig() {
+	config.appDir := A_ScriptDir
 	config.appName := RegExReplace(A_ScriptName, "\.[^.]*$")  ; Remove extension
 	config.dir := EnvGet("APPDATA") . "\" . config.appName
 	if !DirExist(config.dir)
@@ -224,15 +223,6 @@ G.Add("Text", "Y+2", "Ctl-Alt-F9 to reload script")
 G.Add("Text", "Y+2", "Ctl-Alt-F10 to wipe config")
 G.Add("Text", "Y+2", "Pause to pause/resume")
 
-G.Add("Text", "Y+5 Section", "sold =")
-GuiCtrlSold      := G.Add("Text", "X+3 ys", "0000")
-GuiCtrlPaused    := G.Add("Text", "X+3 ys", "Starting up  ")
-
-					G.Add("Text", "X9 Y+3 Section", "try=")
-GuiCtrlTry       := G.Add("Text", "X+0 ys", "00")
-					G.Add("Text", "X+5 ys", "retries=")
-GuiCtrlRetries   := G.Add("Text", "X+0 ys", "0000")
-
 testMode := Integer(readConfigVar("testMode", 1)) ? 1 : 0		; for testing mode, we hit RMouse to cancel rather than Space to sell
 {
 	notTestMode := !testMode										; next line can't use an expression, gotta be a variable.  /sigh
@@ -251,6 +241,19 @@ setTestMode(mode){		; TODO use default value := 1
 	GuiCtrlTestMode.Value := (mode ? 1 : 0)
 	handleTestMode()
 }
+
+G.Add("Text", "X9 Y+5 Section", "sold =")
+GuiCtrlSold      := G.Add("Text", "X+3 ys", "0000")
+GuiCtrlPaused    := G.Add("Text", "X+3 ys", "Starting up  ")
+
+					G.Add("Text", "X9 Y+3 Section", "try=")
+GuiCtrlTry       := G.Add("Text", "X+0 ys", "00")
+					G.Add("Text", "X+5 ys", "retries=")
+GuiCtrlRetries   := G.Add("Text", "X+0 ys", "0000")
+
+G.Add("Link", "X9 Y+3 Section",  '<a href="' config.dir    '">Config</a>')
+G.Add("Link", "X+12 ys",         '<a href="' config.logdir '">Log</a>')
+G.Add("Link", "X+12 ys",         '<a href="' config.appdir '">Script</a>')
 
 GuiCtrlWaitBtn   := G.Add("Text", "X9 Y+3 Section", "Wait for")
 GuiCtrlWaitColor := G.Add("Text", "X+3 ys", "Wait for color")
@@ -446,7 +449,7 @@ logAction(btn, col, sec, failMsg:=""){
 		}
 		actionLast[prevAction.id] := {duration:duration, time:prevAction.tick, failMsg:failMsg, attempts:prevAction.attempts, PSwaits:prevAction.PSwaits}
 	}
-	prevAction.id := id, prevAction.tick := tick, prevAction.attempts := 1		; record the just-started action in prevAction
+	prevAction.id := id, prevAction.tick := tick, prevAction.attempts := 1, prevAction.PSwaits := 0		; record the just-started action in prevAction
 }
 logActionRetry(){
 	global prevAction
