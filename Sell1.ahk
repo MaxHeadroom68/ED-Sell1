@@ -33,7 +33,6 @@ Pause::togglePause()	; make sure to be on the SELL COMMODITY screen when you un-
 
 k := {up: "w", down: "s", left: "a", right: "d", select: "Space", click: "LButton", cancel: "RButton"}	; see readKeysConfig() below to customize
 
-;TODO: don't retry SELL too many times, it'll sell the whole inventory if things go wrong
 ;TODO: log the number of waits in waitForColorPS(), to prevAction{}
 ;TODO: add a GUI line with links to config.ini, log.txt, and ...?
 ;TODO: add a (config-enabled) line at exit that logs out from the game: cancel cancel cancel esc up select right select ;TODO: add "esc" to k.elements
@@ -46,7 +45,7 @@ k := {up: "w", down: "s", left: "a", right: "d", select: "Space", click: "LButto
 strRepeat := (string, times) => strReplace( format( "{:" times "}",  "" ), " ", string )
 beepHello := () => (SoundBeep(330,120), Sleep(30), SoundBeep(660,100), Sleep(40), SoundBeep(440,150), Sleep(20), SoundBeep(494,120))
 beepConfigure := () => (SoundBeep(523,180), Sleep(40), SoundBeep(659,160), Sleep(50), SoundBeep(784,220))
-beepStart := () => (SoundBeep(523,250), Sleep(120), SoundBeep(784,350))
+beepStart := () => (SoundBeep(494,200), Sleep(10), SoundBeep(415,150))
 beepSuccess := () => (SoundBeep(523,300), Sleep(80), SoundBeep(523, 150), Sleep(5), SoundBeep(784,1000))
 beepFailure := () => (SoundBeep(294,400), Sleep(150), SoundBeep(277,500), Sleep(180), SoundBeep(262,500), Sleep(180), SoundBeep(247,1200))
 Lx := (msg) => OutputDebug(A_ScriptName " " msg)				; log truly heinous errors to the console.  View with DebugView from MS
@@ -420,7 +419,7 @@ initButtons(){
 actionStats := Map()							; map of button name, color name, seconds => total duration, min, max, count attempts 1..N
 actionLast := Map()								; map of button name, color name, seconds => duration, last time we logged this action, failMsg, attempts
 actionIds := Array()							; the actions we've seen, in the order we first saw them
-prevAction := {id: "", tick: 0, attempts:0}		; the last action we logged, when (in msec since reboot), and how many times we've tried it
+prevAction := {id: "", tick: 0, attempts:0, PSwaits:0}		; the last action we logged, when (in msec since reboot), and how many times we've tried it
 logAction(btn, col, sec, failMsg:=""){
 	id := (btn ? btn.name : "") "-" col "-" sec, tick := A_TickCount
 	Ld("LogAction() id=" id " failMsg: " failMsg)
@@ -445,7 +444,7 @@ logAction(btn, col, sec, failMsg:=""){
 			stat.min := ((stat.min = 0) ? duration : Min(stat.min, duration))
 			stat.max := Max(stat.max, duration)
 		}
-		actionLast[prevAction.id] := {duration:duration, time:prevAction.tick, failMsg:failMsg, attempts:prevAction.attempts}
+		actionLast[prevAction.id] := {duration:duration, time:prevAction.tick, failMsg:failMsg, attempts:prevAction.attempts, PSwaits:prevAction.PSwaits}
 	}
 	prevAction.id := id, prevAction.tick := tick, prevAction.attempts := 1		; record the just-started action in prevAction
 }
@@ -473,7 +472,7 @@ logActionFinal(){
 	L("last actions:")
 	for id in actionIds {
 		al := actionLast[id]
-		L("time=" al.time " id=" Format("{:-" idLen+1 "}", id) " duration=" al.duration " msg='" al.failMsg "' attempts=" al.attempts)
+		L("time=" al.time " id=" Format("{:-" idLen+1 "}", id) " duration=" al.duration " msg='" al.failMsg "' attempts=" al.attempts " PSwaits=" al.PSwaits)
 	}
 }
 logActionPause(mode) {
@@ -517,11 +516,13 @@ togglePause(){
 
 WaitForColorPS(x, y, c, msec){
   tmpx := 0, tmpy := 0
+  waitSize := 10
   Loop {
 	if (PixelSearch(&tmpx, &tmpy, x, y, x, y, c, 5))
 	  return true
-	Sleep 50
-  } Until ((msec -= 50) <= 0)
+	Sleep(waitSize)
+	prevAction.PSwaits++
+  } Until ((msec -= waitSize) <= 0)
   return false
 }
 
