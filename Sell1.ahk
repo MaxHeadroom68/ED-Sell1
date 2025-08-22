@@ -4,39 +4,39 @@
 
 ; INSTRUCTIONS:
 ; - This is a script for AutoHotKey v2.  https://www.autohotkey.com/docs/v2/howto/Install.htm
-; - when you're ready to start selling, switch the radio buttons on the gui from "Test" to "Sell"
-; - since it's reading the screen colors, if it loses sync it'll just stop rather than going crazy
-; - no need to tell it how many to sell, it'll empty your hold and stop
-; - if you have a few different commodities in your hold and wish to sell them all,
-;   filter the commodities list to show "in inventory", and start with the top one in the list
-; - if there's a lag spike or the server loses a keypress, it'll verify it's still in the right place and retry (up to 3 times)
+; - config file is at %APPDATA%\Sell1\config.ini, log file is at %LOCALAPPDATA%\Sell1\app_DAY.log
+; - If you've modified your keys, you may need to modify the #HotIf block below, and your config.ini file
+;   See k{} below for a list of keys' default values, and readKeysConfig() below for details on config.ini
+; - When you first run the script, there will be a brief setup process.  Please do read everything carefully
+; - When you're ready to start selling, switch the radio buttons on the gui from "Test" to "Sell"
+; - Since it's reading the screen colors, if it loses sync it'll just stop rather than going crazy
+; - No need to tell it how many to sell, it'll empty your hold and stop
+; - If you have a few different commodities in your hold and wish to sell them all,
+;   filter the commodities list to only show "in inventory", and start with the top one in the list
+; - If there's a lag spike or the server loses a keypress, it'll verify it's still in the right place and retry a few times
 ;   (the "retries=" on the popup is the total number of retries since you hit ^!F8), "try=" is how many of the 3 retries you're on
-; - if you want an option to sell other size lots (like 2, or 8), edit the ^!F7 line below
-; - you can get faster sales and better reliability by descending into the hangar before selling
+; - If you want an option to sell other size lots (like 2, or 8), edit the ^!F7 line below
+; - You can get faster sales and better reliability by descending into the hangar before selling
 ;   since your game client doesn't have to think about all those other ships flying around
-; - if you're having a hard time making this work well, AHK comes with WindowSpy to look at pixel locations and colors,
-;   and you can edit %APPDATA%\config.ini to change locations of the pixels we're looking at, and the colors we're looking for
+; - If you're having a hard time making this work well, AHK comes with WindowSpy to look at pixel locations and colors,
+;   and you can edit %APPDATA%\APPNAME\config.ini to change locations of the pixels we're looking at, and the colors we're looking for
 ;   but you shouldn't need to do that, and I'd love it if you could let me know by filing an issue on GitHub
-; - speed on my machine: 4.3sec/sale at 720tons, 2.7sec/sale at 10tons
+; - Speed on my machine: 4.3sec/sale at 780tons, 2.9sec/sale at 10tons
 
 #HotIf WinActive("ahk_class FrontierDevelopmentsAppWinClass")
 ^!F8::smallSales(1)
 ^!F7::smallSales(2)		; SmallSales will take any number you like, but keep it small or it'll be slow
-^!F9:: Send("{" k.up " up}{" k.down " up}{" k.left " up}{" k.right " up}{" k.select " up}"), Lw("Reload"), SoundBeep(2000, 500), Reload()  ; Reload the script  [shamelessly stolen from OB]
+^!F9:: Send("{" k.up " up}{" k.down " up}{" k.left " up}{" k.right " up}{" k.select " up}"), Lw("Reload"), SoundBeep(523, 150), Reload()  ; Reload the script  [shamelessly stolen from OB]
 ^!F10::initButtons()	; ask where the buttons are, figure out the colors
 Pause::togglePause()	; make sure to be on the SELL COMMODITY screen when you un-pause
 #HotIf 
 
 k := {up: "w", down: "s", left: "a", right: "d", select: "Space", click: "LButton", cancel: "RButton"}	; see readKeysConfig() below to customize
 
-;TODO: add an advisory in setup, to drop into the hangar for faster & more reliable sales
+;TODO: don't retry SELL too many times, it'll sell the whole inventory if things go wrong
+;TODO: log the number of waits in waitForColorPS(), to prevAction{}
 ;TODO: add a GUI line with links to config.ini, log.txt, and ...?
-;TODO: at top of Instructions, point out the config file, & log file
-;TODO: at top of Instructions, point folks with modified keys to the #HotIf block, k{}, and readKeysConfig()
-;TODO: add comment to readKeysConfig() to point reader to default keys in k definition above
-;TODO: add an advisory in setup, if you have modified your keys, to change them in the config.ini file, then reload the script
 ;TODO: add a (config-enabled) line at exit that logs out from the game: cancel cancel cancel esc up select right select ;TODO: add "esc" to k.elements
-;TODO: replace beeps with beepSuccess() and beepError(), and use better riffs
 ;TODO: put version number in the config.ini, rename cSFocusDim to cSNoFocusDim
 ;TODO? write default keys into config.ini if they're not already there, to make it easier to change them?
 ;TODO? adaptively adjust timing based on frequency of retries, so it gets faster as it learns the timing; only active in testMode, if a configvar is set
@@ -44,22 +44,27 @@ k := {up: "w", down: "s", left: "a", right: "d", select: "Space", click: "LButto
 ;TODO: figure out what's up with the reported cursor xy not matching the window
 
 strRepeat := (string, times) => strReplace( format( "{:" times "}",  "" ), " ", string )
-beepExit := () => (SoundBeep(523, 250), SoundBeep(500, 250), SoundBeep(523, 250))
-beepDone := () => (SoundBeep(500, 250), SoundBeep(500, 50), SoundBeep(523, 1000))
-Lx := (msg) => OutputDebug(A_ScriptName " " msg)		; log truly heinous errors to the console.  View with DebugView from MS
+beepHello := () => (SoundBeep(330,120), Sleep(30), SoundBeep(660,100), Sleep(40), SoundBeep(440,150), Sleep(20), SoundBeep(494,120))
+beepConfigure := () => (SoundBeep(523,180), Sleep(40), SoundBeep(659,160), Sleep(50), SoundBeep(784,220))
+beepStart := () => (SoundBeep(523,250), Sleep(120), SoundBeep(784,350))
+beepSuccess := () => (SoundBeep(523,300), Sleep(80), SoundBeep(523, 150), Sleep(5), SoundBeep(784,1000))
+beepFailure := () => (SoundBeep(294,400), Sleep(150), SoundBeep(277,500), Sleep(180), SoundBeep(262,500), Sleep(180), SoundBeep(247,1200))
+Lx := (msg) => OutputDebug(A_ScriptName " " msg)				; log truly heinous errors to the console.  View with DebugView from MS
 Lx("uhhh, everything's under control, situation normal")		; script starting up.  (classical reference)
 
 debugMode := false
 testMode := true		; set to true when you're getting set up, so we hit RMouse to cancel, rather than spacebar to actually sell the goods
 PauseOperation := false
 timing := {interKey: 125, keyDuration: 75, extraSellWait: 50, retryMult: 1, retries: 4}		; see readTimingConfig() below, to make timing more or less aggressive
-edWin := {x: 0, y: 0, width: 0, height: 0, hwnd: 0}		; Elite Dangerous window
+edWin := {x: 0, y: 0, width: 0, height: 0, hwnd: 0}											; Elite Dangerous window
 
 if (edWin.hwnd := WinExist("ahk_exe EliteDangerous64.exe")){
 	WinActivate			; give ED focus, even though our window is always on top
 	WinGetPos(&x, &y, &w, &h)
 	edWin.x := x, edWin.y := y, edWin.width := w, edWin.height := h
+	beepHello()
 } else {
+	beepFailure()
 	MsgBox("Elite Dangerous not running, please start the game and try again.")
 	exitApp
 }
@@ -150,6 +155,7 @@ buttonsAreInitialized(){
 
 ; If you use Dvorak/Colemak/etc, you can change the keys (and mouse buttons) we use to navigate around the UI
 ; In %APPDATA%\Sell1\config.ini add a line "[EDkeys]" to start the section, then add lines like "up=w", "down=s", etc.
+; see the definition of k{} (near the top of this file) for the default key names and values
 ; Available keys are listed in https://www.autohotkey.com/docs/v2/KeyList.htm
 ; Detailed info on the format of config.ini is at https://www.autohotkey.com/docs/v2/lib/IniRead.htm
 readKeysConfig() {	
@@ -305,13 +311,19 @@ requestMouseXY(btn, msg := "") {
 }
 
 initButtons(){
+	beepConfigure()
 	L("configuration started")
 	SetKeyDelay 1000, 100
 	activateEDWindow()
 	result := MsgBox("To initialize this script (wiping the old config),`n`n"
 		"open up a station's commodities market`n`n"
 		"then click OK`n`n`n"
-		"or . . . click CANCEL to abort", "Welcome to " A_ScriptName, "OKCancel Default2")
+		"or . . . click CANCEL to abort`n`n`n"
+		"(NOTE:  If you've modified your menu-navigation keys`n"
+		"    (wasd, space, mouse buttons),`n"
+		"    there are instructions in the comments at the top of the script.`n"
+		"    Abort now, read them, come back when you're done)`n`n"
+		, "Welcome to " A_ScriptName, "OKCancel Default2")
 	if (result = "Cancel"){
 		return false
 	}
@@ -398,6 +410,8 @@ initButtons(){
 		"To pause, press Pause.  To resume (aka un-pause):`n"
 		"- get onto the SELL COMMODITY screen`n"
 		"- press Pause.`n`n"
+		"Hint: for speed & reliability, drop into the hangar`n"
+		"    Solo mode may also help.`n`n"
 		"Enjoy your 1-ton selling adventures")
 	return true
 }
@@ -511,9 +525,8 @@ WaitForColorPS(x, y, c, msec){
   return false
 }
 
-; TODO: rename this, remove the S1
 ; button, color name, seconds.  col is a string so we can display it in the UI
-S1WaitForColor(btn, col, sec){
+WaitForColor(btn, col, sec){
   GuiCtrlWaitBtn.Text         := btn.name
   GuiCtrlWaitColor.Text       := col
   GuiCtrlWaitSec.Text         := sec
@@ -538,13 +551,13 @@ SendAndWaitForColor(msg, btn, col, sec, maxAttempts){
 	}
 	if (msg)
 	  SendEvent msg
-	if (S1WaitForColor(btn, col, (sec * thisTry * timing.retryMult))) {		; rather than delay X times (n=1..X) for s seconds, delay X times for n*s seconds
+	if (WaitForColor(btn, col, (sec * thisTry * timing.retryMult))) {		; rather than delay X times (n=1..X) for s seconds, delay X times for n*s seconds
 	  oldBtn := btn
 	  oldCol := col
 	  return true
 	} 
 	; if the old (==previous) pixel check fails, we can't try again
-	if(!msg || !oldBtn || !oldCol || !S1WaitForColor(oldBtn, oldCol, 0)) {
+	if(!msg || !oldBtn || !oldCol || !WaitForColor(oldBtn, oldCol, 0)) {
 		logAction(btn, col, sec, "I_GOT_CONFUSED")
 		return false
 	}
@@ -573,7 +586,8 @@ smallSales(SellBy){		; SellBy is the number of tons to sell at a time.  TODO nee
   global PauseOperation
   SetKeyDelay timing.interKey, timing.keyDuration
   if !VerifyStartingPosition()
-	return beepExit		; should be beepExit(), yes?
+	return beepFailure()
+  beepStart()
   sellCountStr := strRepeat("{" k.right "}", SellBy)
   while true {
 	sellKey := (testMode) ? ("{" k.cancel "}") : ("{" k.select "}")								; testMode is true for testing, false for actually selling
@@ -583,11 +597,11 @@ smallSales(SellBy){		; SellBy is the number of tons to sell at a time.  TODO nee
 		break
 	}
 	; to differentiate them for debugging, each button/color/seconds tuple should be unique.  it's displayed on the 2nd-from-bottom line in the gui
-	if (S1WaitForColor(sellButton, "cSFocusZero", 0)) {											; nothing left, we're done!
+	if (WaitForColor(sellButton, "cSFocusZero", 0)) {											; nothing left, we're done!
 	  timekeeper("final")
 	  logAction("", "", 0, "successful run")													; write the final action to the log
 	  logActionFinal()																			; write the summary statistics to the log
-	  return beepDone()
+	  return beepSuccess()
 	}
 	if (!SendAndWaitForColor("", sellButton, "cSFocus", 4, 0))									; verify we're on the sell button, and set the "previous" button/color for the next SendAndWaitForColor
 	  break
@@ -612,11 +626,11 @@ smallSales(SellBy){		; SellBy is the number of tons to sell at a time.  TODO nee
 		sleep 1000
 	  }
 	  if !VerifyStartingPosition()
-		return beepExit()
+		return beepFailure()
 	  timekeeper("resume"), logActionPause("resume"), GuiCtrlPaused.Text := ""
 	}
   }
   logActionFinal()		; write the summary statistics to the log.  something in SendAndWaitForColor() failed, so logAction() already got called with a failure message
-  beepExit()
+  beepFailure()
 }
 
