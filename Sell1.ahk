@@ -616,7 +616,7 @@ smallSales(SellBy){		; SellBy is the number of tons to sell at a time.  TODO nee
 	if (!SendAndWaitForColor("{" k.down "}", sellButton, "cSFocus", 5, timing.retries))			; down to the sell button; needs a different timeout from the previous SellButton/colorSelectedFocus
 	  break						
 	GuiCtrlSold.Text := (sold += SellBy)
-	if (!SendAndWaitForColor(sellKey, sellTab, "cSNoFocus", 4, timing.retries))					; sell and wait for the sell window to go away, revealing sellTab without the dimming
+	if (!SendAndWaitForColor(sellKey, sellTab, "cSNoFocus", 2, timing.retries))					; sell and wait for the sell window to go away, revealing sellTab without the dimming.  only try twice, don't sell the whole hold if there's a server burp
 	  break
 	if (!SendAndWaitForColor("{" k.select "}", sellTab, "cSFocusDim", 4, timing.retries))		; select the commodity from the list
 	  break
