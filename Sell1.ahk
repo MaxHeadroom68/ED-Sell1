@@ -34,7 +34,6 @@ Pause::togglePause()	; make sure to be on the SELL COMMODITY screen when you un-
 
 k := {up: "w", down: "s", left: "a", right: "d", select: "space", escape:"escape", click: "LButton", cancel: "RButton"}	; see readKeysConfig() below to customize
 
-;TODO: put version number in the config.ini, rename cSFocusDim to cSNoFocusDim
 ;TODO? write default keys into config.ini if they're not already there, to make it easier to change them?
 ;TODO? adaptively adjust timing based on frequency of retries, so it gets faster as it learns the timing; only active in testMode, if a configvar is set
 ;TODO: make the input keys (Pause, ^!F8, etc) configurable in config.ini, so you can change them to something else if you like.  How to do that without sacrificing readability?
@@ -72,7 +71,7 @@ activateEDWindow() {
 }
 
 ; Configuration - store settings in %APPDATA%\SCRIPTNAME\config.ini
-config := {fileName:"config.ini", defaultSection:"Settings", minLogLevel:1, optionExitGameAtEnd:0} ;TODO: , version"0.3.0", prevVer:""}
+config := {fileName:"config.ini", defaultSection:"Settings", minLogLevel:1, optionExitGameAtEnd:0, iniVersion:""}
 initConfig() {
 	config.appDir := A_ScriptDir
 	config.appName := RegExReplace(A_ScriptName, "\.[^.]*$")  ; Remove extension
@@ -83,18 +82,18 @@ initConfig() {
 	if !FileExist(config.file) {
 		writeConfigVar("testMode", testMode ? "1" : "0")  ; store testMode as 1 or 0
 	}
-	openMode := "a"  ; open logfile in append mode by default
-	;openMode := "w"  ; during testing, to keep things tidy, maybe we want to overwrite the log each time
 	localAppData := EnvGet("LocalAppData") || EnvGet("TEMP") || A_Temp
 	config.logdir := localAppData "\" config.appName
 	if !DirExist(config.logdir)
 		DirCreate(config.logdir)
 	config.logFile := config.logdir "\app_" FormatTime(A_Now, "ddd") ".log"  ; Log file named with the current weekday
+	openMode := readConfigVar("logfileopenmode", "a")		; can use "w" if you want to start with a fresh log file each time
 	if FileExist(config.logFile) && DateDiff(A_Now, FileGetTime(config.logFile, "M"), "Days") > 2
 		openMode := "w"  ; If the log file is older than 2 days, overwrite it
 	config.logHandle := FileOpen(config.logFile, openMode)  ; Open log file for appending
 	config.minLogLevel         := readConfigVar("minLogLevel", config.minLogLevel)
 	config.optionExitGameAtEnd := readConfigVar("optionExitGameAtEnd", config.optionExitGameAtEnd)
+	config.iniVersion := readConfigVar("version", config.iniVersion)
 }
 initConfig()
 
@@ -177,14 +176,25 @@ readTimingConfig() {
 	}
 }
 
-colorNames := ["cSFocus", "cSNoFocus", "cSFocusDim", "cSFocusZero", "cSNoFocusZero"]
+;update config.ini, convert 0.2.0 to 0.3.0
+if (config.iniVersion="") {
+	; get cSFocusDim (the wrong name for the color, which we used before 0.3.0), delete it from config.ini, save it back as cSNoFocusDim so it's there when we readButtonConfig(sellTab)
+	if (color := IniRead(config.file, "sellTab", "cSFocusDim")) {
+		IniDelete(config.file, "sellTab", "cSFocusDim")
+		IniWrite(color, config.file, "sellTab", "cSNoFocusDim")
+	}
+	config.iniVersion := "0.3.0"
+	writeConfigVar("version", config.iniVersion)
+}
+
+colorNames := ["cSFocus", "cSNoFocus", "cSNoFocusDim", "cSFocusZero", "cSNoFocusZero"]
 sellTab := {				; coordinates and colors for the SELL tab in the commodities market
 	name: "sellTab", x: 0, y: 0, val: 0, lum: 0,
-	cSFocus:	0,			; colorSelectedFocus		-- focus is on the sell tab
-	cSNoFocus:	0,			; colorSelectedNoFocus		-- selected (vs buy) but focus is elsewhere
-	cSFocusDim:	0			; colorSelectedFocusDim	-- selected, not in focus, and sell-item overlay dims this layer  (yup, should be named cSNoFocusDim.  oh well, too late now)
+	cSFocus:		0,		; colorSelectedFocus		-- focus is on the sell tab
+	cSNoFocus:		0,		; colorSelectedNoFocus		-- selected (vs buy) but focus is elsewhere
+	cSNoFocusDim:	0		; colorSelectedFocusDim		-- selected, not in focus, and sell-item overlay dims this layer
 	; good values for 1920x1080: x: 180, y: 420
-	; values for stock UI colors: cSFocus: 0xFF6F00, cSNoFocus: 0x4E2302, cSFocusDim: 0x1F0E01
+	; values for stock UI colors: cSFocus: 0xFF6F00, cSNoFocus: 0x4E2302, cSNoFocusDim: 0x1F0E01
 	; texture means we gotta find the brightest pixel, look at 4 vertically stacked pixels for the brightest one
 }
 sellButton := {				; coordinates and colors for the SELL button in the commodities market
@@ -351,7 +361,7 @@ initButtons(){
 	SendEvent("{" k.right "}")
 	sellTab.cSNoFocus := PixelGetColor(sellTab.x, sellTab.y)
 	SendEvent("{" k.select "}")
-	sellTab.cSFocusDim := PixelGetColor(sellTab.x, sellTab.y)
+	sellTab.cSNoFocusDim := PixelGetColor(sellTab.x, sellTab.y)
 	sleep 1000
 	SendEvent("{" k.cancel "}")
 
@@ -527,7 +537,7 @@ WaitForColor(btn, col, sec){
   result := WaitForColorPS(btn.x, btn.y, btn.%col%, sec * 1000)
   GuiCtrlSellTabColor.Text    := PixelGetColor(sellTab.x, sellTab.y)
   GuiCtrlSellButtonColor.Text := PixelGetColor(sellButton.x, sellButton.y)
-  sleep 50		; TODO remove this delay?
+  sleep 10		; TODO remove this delay?
   return result
 }
 
@@ -567,7 +577,7 @@ VerifyStartingPosition(){
 	return false
   }
   MouseMove(edWin.width/2, edWin.height-30)							; put the mouse on the bottom of the ED window, but out of the way
-  if (!SendAndWaitForColor("", sellTab, "cSFocusDim", 1, 0))		; gotta start on the "SELL COMMODITY screen" selling your item
+  if (!SendAndWaitForColor("", sellTab, "cSNoFocusDim", 1, 0))		; gotta start on the "SELL COMMODITY screen" selling your item
 	return false
   ; move the cursor to the sell button, then add 1 to the quantity, then move the cursor back to the sell button
   SendEvent("{" k.down "}{" k.down "}{" k.left "}{" k.left "}{" k.down "}{" k.up "}{" k.up "}{" k.right "}{" k.down "}")
@@ -621,9 +631,9 @@ smallSales(SellBy){		; SellBy is the number of tons to sell at a time.  TODO nee
 	if (!SendAndWaitForColor("{" k.down "}", sellButton, "cSFocus", 5, timing.retries))			; down to the sell button; needs a different timeout from the previous SellButton/colorSelectedFocus
 	  break						
 	GuiCtrlSold.Text := (sold += SellBy)
-	if (!SendAndWaitForColor(sellKey, sellTab, "cSNoFocus", 15, Max(2,timing.retries)))			; sell and wait for the sell window to go away, revealing sellTab without the dimming.  only try twice; don't sell the whole hold if there's a server burp.  that's why the timeout is so long
+	if (!SendAndWaitForColor(sellKey, sellTab, "cSNoFocus", 15, Min(2,timing.retries)))			; sell and wait for the sell window to go away, revealing sellTab without the dimming.  only try twice; don't sell the whole hold if there's a server burp.  that's why the timeout is so long
 	  break
-	if (!SendAndWaitForColor("{" k.select "}", sellTab, "cSFocusDim", 4, timing.retries))		; select the commodity from the list
+	if (!SendAndWaitForColor("{" k.select "}", sellTab, "cSNoFocusDim", 4, timing.retries))		; select the commodity from the list
 	  break
 	if PauseOperation {
 	  timekeeper("pause"), logActionPause("pause"), GuiCtrlPaused.Text := "Paused"
