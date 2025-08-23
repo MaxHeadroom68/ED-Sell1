@@ -18,6 +18,7 @@
 ; - If you want an option to sell other size lots (like 2, or 8), edit the ^!F7 line below
 ; - You can get faster sales and better reliability by descending into the hangar before selling
 ;   since your game client doesn't have to think about all those other ships flying around
+; - in the [Settings] section of config.ini, add "optionExitGameAtEnd=1" if you want a checkbox that'll log out of the game when we're done selling a load
 ; - If you're having a hard time making this work well, AHK comes with WindowSpy to look at pixel locations and colors,
 ;   and you can edit %APPDATA%\APPNAME\config.ini to change locations of the pixels we're looking at, and the colors we're looking for
 ;   but you shouldn't need to do that, and I'd love it if you could let me know by filing an issue on GitHub
@@ -31,9 +32,8 @@
 Pause::togglePause()	; make sure to be on the SELL COMMODITY screen when you un-pause
 #HotIf 
 
-k := {up: "w", down: "s", left: "a", right: "d", select: "Space", click: "LButton", cancel: "RButton"}	; see readKeysConfig() below to customize
+k := {up: "w", down: "s", left: "a", right: "d", select: "space", escape:"escape", click: "LButton", cancel: "RButton"}	; see readKeysConfig() below to customize
 
-;TODO: add a (config-enabled) line at exit that logs out from the game: cancel cancel cancel esc up select right select ;TODO: add "esc" to k.elements
 ;TODO: put version number in the config.ini, rename cSFocusDim to cSNoFocusDim
 ;TODO? write default keys into config.ini if they're not already there, to make it easier to change them?
 ;TODO? adaptively adjust timing based on frequency of retries, so it gets faster as it learns the timing; only active in testMode, if a configvar is set
@@ -49,8 +49,8 @@ beepFailure := () => (SoundBeep(294,400), Sleep(150), SoundBeep(277,500), Sleep(
 Lx := (msg) => OutputDebug(A_ScriptName " " msg)				; log truly heinous errors to the console.  View with DebugView from MS
 Lx("uhhh, everything's under control, situation normal")		; script starting up.  (classical reference)
 
-debugMode := false		; used for random things during development
-testMode := true		; set to true when you're getting set up, so we hit RMouse to cancel, rather than spacebar to actually sell the goods
+debugMode := false			; used for random things during development
+testMode := true			; set to true when you're getting set up, so we hit RMouse to cancel, rather than spacebar to actually sell the goods
 PauseOperation := false
 timing := {interKey: 125, keyDuration: 75, extraSellWait: 50, retryMult: 1, retries: 4}		; see readTimingConfig() below, to make timing more or less aggressive
 edWin := {x: 0, y: 0, width: 0, height: 0, hwnd: 0}											; Elite Dangerous window
@@ -72,7 +72,7 @@ activateEDWindow() {
 }
 
 ; Configuration - store settings in %APPDATA%\SCRIPTNAME\config.ini
-config := {fileName: "config.ini", defaultSection: "Settings", minLogLevel: 1}
+config := {fileName:"config.ini", defaultSection:"Settings", minLogLevel:1, optionExitGameAtEnd:0}
 initConfig() {
 	config.appDir := A_ScriptDir
 	config.appName := RegExReplace(A_ScriptName, "\.[^.]*$")  ; Remove extension
@@ -93,7 +93,8 @@ initConfig() {
 	if FileExist(config.logFile) && DateDiff(A_Now, FileGetTime(config.logFile, "M"), "Days") > 2
 		openMode := "w"  ; If the log file is older than 2 days, overwrite it
 	config.logHandle := FileOpen(config.logFile, openMode)  ; Open log file for appending
-	config.minLogLevel := IniRead(config.file, config.defaultSection, "minLogLevel", config.minLogLevel)
+	config.minLogLevel         := readConfigVar("minLogLevel", config.minLogLevel)
+	config.optionExitGameAtEnd := readConfigVar("optionExitGameAtEnd", config.optionExitGameAtEnd)
 }
 initConfig()
 
@@ -125,12 +126,10 @@ writeConfigVar(key, value) {
 }
 
 readButtonConfig(btn){
-	;buttonMsgBox(btn, btn.name " PREload`n")
 	for propName in ["x", "y"]
 		btn.%propName% := IniRead(config.file, btn.name, propName, 0)
 	for propName in colorNames
 		btn.HasProp(propname) && btn.%propName% := IniRead(config.file, btn.name, propName, 0x000000)
-	buttonMsgBox(btn, btn.name " LOAD`n")
 }
 writeButtonConfig(btn){
 	props := ""
@@ -153,13 +152,14 @@ buttonsAreInitialized(){
 
 ; If you use Dvorak/Colemak/etc, you can change the keys (and mouse buttons) we use to navigate around the UI
 ; In %APPDATA%\Sell1\config.ini add a line "[EDkeys]" to start the section, then add lines like "up=w", "down=s", etc.
-; see the definition of k{} (near the top of this file) for the default key names and values
+; See the definition of k{} (near the top of this file) for the default key names and values
 ; Available keys are listed in https://www.autohotkey.com/docs/v2/KeyList.htm
 ; Detailed info on the format of config.ini is at https://www.autohotkey.com/docs/v2/lib/IniRead.htm
 readKeysConfig() {	
 	global k
-	for keyName in ["up", "down", "left", "right", "select", "click", "cancel"] {
+	for keyName in ["up", "down", "left", "right", "select", "escape", "click", "cancel"] {
 		k.%keyName% := IniRead(config.file, "EDkeys", keyName, k.%keyName%)
+		Ld("readKeysConfig() k=" keyName " val=" k.%keyName%)
 	}
 }
 
@@ -173,20 +173,7 @@ readTimingConfig() {
 	global timing
 	for keyName in ["interKey", "keyDuration", "extraSellWait", "retryMult", "retries"] {
 		timing.%keyName% := IniRead(config.file, "Timing", keyName, timing.%keyName%)
-	}
-}
-
-; debugging convenience
-buttonMsgBox(btn, msg := ""){
-	for propName in ["name", "x", "y", "lum"]
-		if (btn.HasProp(propName))
-			msg := msg . propName . ": " . btn.%propName% . "`n"
-	for propName in colorNames
-		if (btn.HasProp(propName))
-			msg := msg . propName . ": " . Format("{1:#06X}", btn.%propName%) . "`n"
-	if (debugMode) {
-		MsgBox(msg)
-		activateEDWindow()
+		Ld("readTimingConfig() variable=" keyName " val=" k.%keyName%)
 	}
 }
 
@@ -237,7 +224,7 @@ handleTestMode(*) {												; whichever radio button is clicked, we read the 
 	Ld("handleTestMode() testMode: " testMode)
 	activateEDWindow()
 }
-setTestMode(mode){		; TODO use default value := 1
+setTestMode(mode := 1){
 	GuiCtrlTestMode.Value := (mode ? 1 : 0)
 	handleTestMode()
 }
@@ -261,6 +248,10 @@ GuiCtrlWaitSec   := G.Add("Text", "X+3 ys", "XX")
 
 GuiCtrlSellTabColor    := G.Add("Text", "X9 Y+2 Section", "0xXXXXXX")
 GuiCtrlSellButtonColor := G.Add("Text", "X+3 ys", "0xXXXXXX")
+if (config.optionExitGameAtEnd) {
+	GuiCtrlExitGameAtEnd := G.Add("CheckBox", "X9 Y+3", "Exit Game At End?")
+	GuiCtrlExitGameAtEnd.OnEvent("Click", (*) => activateEDWindow())
+}
 
 {	; get saved GUI position, or default to bottom-left of the ED window
 	x := y := w := h := 0
@@ -362,7 +353,6 @@ initButtons(){
 	sellTab.cSFocusDim := PixelGetColor(sellTab.x, sellTab.y)
 	sleep 1000
 	SendEvent("{" k.cancel "}")
-	buttonMsgBox(sellTab, "sellTab LATE`n")
 
 	initGui.Hide()
 	MsgBox("So far so good.  Now, click on a commodity`n"
@@ -394,7 +384,6 @@ initButtons(){
 	sellButton.cSFocus := PixelGetColor(sellButton.x, sellButton.y)
 	sleep 1000
 	SendEvent("{" k.cancel "}")
-	buttonMsgBox(sellButton, "sellButton LATE`n")
 	setTestMode(true)			;might not already be true, if this isn't the first time
 	writeButtonConfig(sellTab)
 	writeButtonConfig(sellButton)
@@ -584,6 +573,15 @@ VerifyStartingPosition(){
   return true
 }
 
+smallSalesOnExit(){
+	Ld("smallSalesOnExit() config.optionExitGameAtEnd=" config.optionExitGameAtEnd " GuiCtrlExitGameAtEnd.Value=" GuiCtrlExitGameAtEnd.Value)
+	if (GuiCtrlExitGameAtEnd.Value){
+		SetKeyDelay 2000, 200
+		SendEvent("{" k.escape "}{" k.up "}{" k.select "}{" k.right "}{" k.select "}")		;exits the game commodities or sell screen
+		ExitApp()				; no point in sticking around -- after the game exits our hwnd is invalid
+	}
+}
+
 smallSales(SellBy){		; SellBy is the number of tons to sell at a time.  TODO needs a better name
   sold := 0
   GuiCtrlRetries := 0
@@ -597,6 +595,7 @@ smallSales(SellBy){		; SellBy is the number of tons to sell at a time.  TODO nee
 	sellKey := (testMode) ? ("{" k.cancel "}") : ("{" k.select "}")								; testMode is true for testing, false for actually selling
 	timekeeper(sold)
 	if (WinExist("A") != edWin.hwnd) {															; if the ED window isn't on top, we can't do anything
+		Lw("Looks like you want control of your computer back, so I'm stopping")
 		MsgBox("Looks like you want control of your computer back, so I'm stopping.")			; this doesn't seem to work, but the test is kicking us out, so I'm calling it a win
 		break
 	}
@@ -605,6 +604,7 @@ smallSales(SellBy){		; SellBy is the number of tons to sell at a time.  TODO nee
 	  timekeeper("final")
 	  logAction("", "", 0, "successful run")													; write the final action to the log
 	  logActionFinal()																			; write the summary statistics to the log
+	  smallSalesOnExit()
 	  return beepSuccess()
 	}
 	if (!SendAndWaitForColor("", sellButton, "cSFocus", 4, 0))									; verify we're on the sell button, and set the "previous" button/color for the next SendAndWaitForColor
@@ -630,11 +630,12 @@ smallSales(SellBy){		; SellBy is the number of tons to sell at a time.  TODO nee
 		sleep 1000
 	  }
 	  if !VerifyStartingPosition()
-		return beepFailure()
+		break
 	  timekeeper("resume"), logActionPause("resume"), GuiCtrlPaused.Text := ""
 	}
   }
   logActionFinal()		; write the summary statistics to the log.  something in SendAndWaitForColor() failed, so logAction() already got called with a failure message
+  smallSalesOnExit()
   beepFailure()
 }
 
