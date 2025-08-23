@@ -251,7 +251,8 @@ GuiCtrlSellButtonColor := G.Add("Text", "X+3 ys", "0xXXXXXX")
 if (config.optionExitGameAtEnd) {
 	GuiCtrlExitGameAtEnd := G.Add("CheckBox", "X9 Y+3", "Exit Game At End?")
 	GuiCtrlExitGameAtEnd.OnEvent("Click", (*) => activateEDWindow())
-}
+} else
+	GuiCtrlExitGameAtEnd := {Value:0}			; regardless of the value of config.optionExitGameAtEnd, we'll want to check this later
 
 {	; get saved GUI position, or default to bottom-left of the ED window
 	x := y := w := h := 0
