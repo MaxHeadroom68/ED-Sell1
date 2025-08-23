@@ -82,13 +82,12 @@ initConfig() {
 	if !FileExist(config.file) {
 		writeConfigVar("testMode", testMode ? "1" : "0")  ; store testMode as 1 or 0
 	}
-	openMode := "a"  ; open logfile in append mode by default
-	;openMode := "w"  ; during testing, to keep things tidy, maybe we want to overwrite the log each time
 	localAppData := EnvGet("LocalAppData") || EnvGet("TEMP") || A_Temp
 	config.logdir := localAppData "\" config.appName
 	if !DirExist(config.logdir)
 		DirCreate(config.logdir)
 	config.logFile := config.logdir "\app_" FormatTime(A_Now, "ddd") ".log"  ; Log file named with the current weekday
+	openMode := readConfigVar("logfileopenmode", "a")		; can use "w" if you want to start with a fresh log file each time
 	if FileExist(config.logFile) && DateDiff(A_Now, FileGetTime(config.logFile, "M"), "Days") > 2
 		openMode := "w"  ; If the log file is older than 2 days, overwrite it
 	config.logHandle := FileOpen(config.logFile, openMode)  ; Open log file for appending
@@ -538,7 +537,7 @@ WaitForColor(btn, col, sec){
   result := WaitForColorPS(btn.x, btn.y, btn.%col%, sec * 1000)
   GuiCtrlSellTabColor.Text    := PixelGetColor(sellTab.x, sellTab.y)
   GuiCtrlSellButtonColor.Text := PixelGetColor(sellButton.x, sellButton.y)
-  sleep 50		; TODO remove this delay?
+  sleep 10		; TODO remove this delay?
   return result
 }
 
@@ -632,7 +631,7 @@ smallSales(SellBy){		; SellBy is the number of tons to sell at a time.  TODO nee
 	if (!SendAndWaitForColor("{" k.down "}", sellButton, "cSFocus", 5, timing.retries))			; down to the sell button; needs a different timeout from the previous SellButton/colorSelectedFocus
 	  break						
 	GuiCtrlSold.Text := (sold += SellBy)
-	if (!SendAndWaitForColor(sellKey, sellTab, "cSNoFocus", 15, Max(2,timing.retries)))			; sell and wait for the sell window to go away, revealing sellTab without the dimming.  only try twice; don't sell the whole hold if there's a server burp.  that's why the timeout is so long
+	if (!SendAndWaitForColor(sellKey, sellTab, "cSNoFocus", 15, Min(2,timing.retries)))			; sell and wait for the sell window to go away, revealing sellTab without the dimming.  only try twice; don't sell the whole hold if there's a server burp.  that's why the timeout is so long
 	  break
 	if (!SendAndWaitForColor("{" k.select "}", sellTab, "cSNoFocusDim", 4, timing.retries))		; select the commodity from the list
 	  break
