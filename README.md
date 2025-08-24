@@ -32,7 +32,7 @@ To pause, press Pause.  To resume (aka un-pause):
 - press Pause
 
 You can get faster sales and better reliability by dropping into the station hangar,
-since the client doesn't so much work to do, tracking the other ships.
+since the client doesn't have so much work to do, tracking the other ships.
 Going to solo mode may also help, depending on how crowded the station is.
 
 If you have a few different commodities in your hold and wish to sell them all,
