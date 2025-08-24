@@ -2,6 +2,7 @@ Elite Dangerous helper script in AutoHotKey v2 to sell one ton of goods at a tim
 
 Logging in %LocalAppData%\Sell1\app_DAY.log, rotates each weekday.  Very helpful for diagnosing problems, especially if you sell a small batch and set "minloglevel=0".
 
+GUI shows links to config, log, and script directories.
 
 Config in %AppData%\Sell1\config.ini, here are some config variables you might find useful.  Edit config.ini, then reload the script.
 
@@ -15,10 +16,10 @@ logfileopenmode=a			; a - append to today's logfile;  w - clear out log file bef
 These are the keys we use to navigate around the ED UI.  Available key names are listed in https://www.autohotkey.com/docs/v2/KeyList.htm
 ```
 [EDkeys]					
-up=Up
-down=Down
-left=Left
-right=Right
+up=w
+down=s
+left=a
+right=d
 select=Space
 escape=Escape
 click=LButton
