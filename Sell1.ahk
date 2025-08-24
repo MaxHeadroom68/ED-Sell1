@@ -421,9 +421,9 @@ initButtons(){
 		"To pause, press Pause.  To resume (aka un-pause):`n"
 		"- get onto the SELL COMMODITY screen`n"
 		"- press Pause.`n`n"
-		"Hint: for speed & reliability, drop into the hangar`n"
+		"Hint: for speed & reliability, drop into the hangar.`n"
 		"    Solo mode may also help.`n`n"
-		"Enjoy your 1-ton selling adventures")
+		"Enjoy your 1-ton selling adventures!")
 	return true
 }
 
@@ -494,7 +494,7 @@ logActionFinal(){
 		loop stat.attempts.Length {
 			attMsg .= (A_Index>1 ? ", " : "") . stat.attempts[A_Index]
 		}
-		L(Format("id={:-" idLen "} avg={:-4} duration={:-5} min={:-4} max={:-4} pxWaits={:-4} attempts={:-12} keySeq={}",
+		L(Format("id={:-" idLen "} avg={:-4} duration={:-7} min={:-4} max={:-4} pxWaits={:-6} attempts={:-12} keySeq={}",
 			id, avg, stat.duration, stat.min, stat.max, stat.pixelWaits, "[" attMsg "]", stat.keySeq))
 	}
 }
