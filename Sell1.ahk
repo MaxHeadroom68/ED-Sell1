@@ -4,6 +4,7 @@
 
 ; INSTRUCTIONS:
 ; - This is a script for AutoHotKey v2.  https://www.autohotkey.com/docs/v2/howto/Install.htm
+; - The README is at https://github.com/MaxHeadroom68/ED-Sell1, with configuration instructions
 ; - config file is at %APPDATA%\Sell1\config.ini, log file is at %LOCALAPPDATA%\Sell1\app_DAY.log
 ; - If you've modified your keys, you may need to modify the #HotIf block below, and your config.ini file
 ;   See k{} below for a list of keys' default values, and readKeysConfig() below for details on config.ini
@@ -26,7 +27,7 @@
 
 #HotIf WinActive("ahk_class FrontierDevelopmentsAppWinClass")
 ^!F8::smallSales(1)
-^!F7::smallSales(2)		; SmallSales will take any number you like, but keep it small or it'll be slow
+^!F7::smallSales(config.saleSize2ndKey)		; SmallSales will take any number you like, but keep it small or it'll be slow.  change in config.ini, or just edit this here
 ^!F9:: Send("{" k.up " up}{" k.down " up}{" k.left " up}{" k.right " up}{" k.select " up}"), Lw("Reload"), SoundBeep(523, 150), Reload()  ; Reload the script  [shamelessly stolen from OB]
 ^!F10::initButtons()	; ask where the buttons are, figure out the colors
 ^!F12::setTestMode(!testMode)	; toggle test mode
@@ -35,9 +36,6 @@ Pause::togglePause()	; make sure to be on the SELL COMMODITY screen when you un-
 
 k := {up: "w", down: "s", left: "a", right: "d", select: "Space", escape:"Escape", click: "LButton", cancel: "RButton"}	; see readKeysConfig() below to customize
 
-;TODO: move WinExist() test into SendAndWaitForColor() before the send XX
-;TODO? write default keys into config.ini if they're not already there, to make it easier to change them?
-;TODO? adaptively adjust timing based on frequency of retries, so it gets faster as it learns the timing; only active in testMode, if a configvar is set
 ;TODO: make the input keys (Pause, ^!F8, etc) configurable in config.ini, so you can change them to something else if you like.  How to do that without sacrificing readability?
 ;TODO: figure out what's up with the reported cursor xy not matching the window
 
@@ -72,7 +70,7 @@ activateEDWindow() {
 }
 
 ; Configuration - store settings in %APPDATA%\SCRIPTNAME\config.ini
-config := {fileName:"config.ini", defaultSection:"Settings", minLogLevel:1, optionExitGameAtEnd:0, iniVersion:""}
+config := {fileName:"config.ini", defaultSection:"Settings", minLogLevel:1, saleSize2ndKey:2, optionExitGameAtEnd:0, iniVersion:""}
 initConfig() {
 	config.appDir := A_ScriptDir
 	config.appName := RegExReplace(A_ScriptName, "\.[^.]*$")  ; Remove extension
@@ -92,8 +90,9 @@ initConfig() {
 	if FileExist(config.logFile) && DateDiff(A_Now, FileGetTime(config.logFile, "M"), "Days") > 2
 		openMode := "w"  ; If the log file is older than 2 days, overwrite it
 	config.logHandle := FileOpen(config.logFile, openMode)  ; Open log file for appending
-	config.minLogLevel         := readConfigVar("minLogLevel", config.minLogLevel)
-	config.optionExitGameAtEnd := readConfigVar("optionExitGameAtEnd", config.optionExitGameAtEnd)
+	config.minLogLevel			:= readConfigVar("minLogLevel", config.minLogLevel)
+	config.saleSize2ndKey		:= readConfigVar("saleSize2ndKey", config.saleSize2ndKey)
+	config.optionExitGameAtEnd	:= readConfigVar("optionExitGameAtEnd", config.optionExitGameAtEnd)
 	config.iniVersion := readConfigVar("version", config.iniVersion)
 }
 initConfig()
@@ -223,7 +222,7 @@ if (!buttonsAreInitialized()) {
 
 G := Gui("AlwaysOnTop -MaximizeBox -MinimizeBox", config.appName)
 G.Add("Text", "X9 Y+8 Section", "Ctl-Alt-F8 to sell 1 ton lots")
-G.Add("Text", "Y+2", "Ctl-Alt-F7 to sell 2 ton lots")
+G.Add("Text", "Y+2", "Ctl-Alt-F7 to sell " config.saleSize2ndKey " ton lots")
 G.Add("Text", "Y+2", "Ctl-Alt-F9 to reload script")
 G.Add("Text", "Y+2", "Ctl-Alt-F10 to wipe config")
 G.Add("Text", "Y+2", "Pause to pause/resume")
@@ -334,8 +333,8 @@ initButtons(){
 		"then click OK`n`n`n"
 		"or . . . click CANCEL to abort`n`n`n"
 		"(NOTE:  If you've modified your menu-navigation keys`n"
-		"    (wasd, space, mouse buttons),`n"
-		"    there are instructions in the comments at the top of the script.`n"
+		"    (wasd, space, mouse buttons), there are special`n"
+		"    instructions in the comments at the top of the script.`n"
 		"    Abort now, read them, come back when you're done)`n`n"
 		, "Welcome to " A_ScriptName, "OKCancel Default2")
 	if (result = "Cancel"){
@@ -631,8 +630,8 @@ smallSalesOnExit(){
 	}
 }
 
-smallSales(SellBy){		; SellBy is the number of tons to sell at a time.  TODO needs a better name
-  L("smallSales() starting, batchsize=" SellBy)
+smallSales(saleSize){		; saleSize is the number of tons to sell at a time.
+  L("smallSales() starting, saleSize=" saleSize)
   sold := 0
   GuiCtrlRetries := 0
   global PauseOperation
@@ -640,7 +639,7 @@ smallSales(SellBy){		; SellBy is the number of tons to sell at a time.  TODO nee
   if !VerifyStartingPosition()
 	return beepFailure()
   beepStart()
-  sellCountStr := strRepeat("{" k.right "}", SellBy)
+  sellCountStr := strRepeat("{" k.right "}", saleSize)
   while true {
     SetKeyDelay timing.keyDelay, timing.keyDuration
 	sellKey := (testMode) ? ("{" k.cancel "}") : ("{" k.select "}")								; testMode is true for testing, false for actually selling
@@ -665,7 +664,7 @@ smallSales(SellBy){		; SellBy is the number of tons to sell at a time.  TODO nee
 	  break
 	if (!SendAndWaitForColor("{" k.down "}", sellButton, "cSFocus", 3, timing.retries))			; down to the sell button; needs a different timeout from the previous SellButton/colorSelectedFocus
 	  break						
-	GuiCtrlSold.Text := (sold += SellBy)
+	GuiCtrlSold.Text := (sold += saleSize)
 	if (!SendAndWaitForColor(sellKey, sellTab, "cSNoFocus", 10, 2))								; sell and wait for the sell window to go away, revealing sellTab without the dimming.  only try twice; don't sell the whole hold if there's a server burp.  that's why the timeout is so long
 	  break
 	if (!SendAndWaitForColor("{" k.select "}", sellTab, "cSNoFocusDim", 4, timing.retries))		; again select the commodity from the list
