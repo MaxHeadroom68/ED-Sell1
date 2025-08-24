@@ -3,14 +3,18 @@ to sell one ton of goods at a time, for reasons.
 
 ## Features
 
-Peeps pixels to stay in sync with the ED UI.
-If it loses sync, it'll stop rather than wandering through the menu and selling your Corvette.
-If it thinks the only thing wrong is the game didn't see a keypress, it'll wait a bit and try again.
+- Peeps pixels to stay in sync with the ED UI.
+- If it loses sync, it'll stop rather than wandering through the menu and selling your Corvette.
+- If it thinks the only thing wrong is the game didn't see a keypress, it'll wait a bit and try again.
 (It'll try a few times, except the SELL button it'll only try twice, to avoid selling your entire inventory at once.)
+- Works with the "More Info" sidebar displayed or not.
+- You don't need to have the cursor on the SELL button, just be on the SELL COMMODITY screen.
+- Second hotkey for selling slightly larger lots (like 2-8)
+- Pause key will pause operation
 
 ## Setup
-When run for the first time, there'll be a short setup process.
-Please do read everything carefully, and follow the instructions.
+When run for the first time, there'll be a short setup process, to account for different screensize, scaling, colors, etc.
+It just needs you to click on a couple things.  Quick & painless.  Please do read everything carefully, and follow the instructions.
 
 ## GUI
 On start, a small GUI will show command keys, and some timing and debug information.
