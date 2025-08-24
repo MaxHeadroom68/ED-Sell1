@@ -12,6 +12,7 @@ to sell one ton of goods at a time, for reasons.
 - Second hotkey for selling slightly larger lots (like 2-8)
 - Pause key will pause operation
 - Configurable timing settings: inter-keypress delay, keypress duration, timout scale factor
+- Configurable UI navigation keys, if you've remapped WASD, etc
 
 ## Setup
 When run for the first time, there'll be a short setup process, to account for different screensize, scaling, colors, etc.
