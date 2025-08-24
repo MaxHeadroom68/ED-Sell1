@@ -11,6 +11,7 @@ to sell one ton of goods at a time, for reasons.
 - You don't need to have the cursor on the SELL button, just be on the SELL COMMODITY screen.
 - Second hotkey for selling slightly larger lots (like 2-8)
 - Pause key will pause operation
+- Configurable timing settings: inter-keypress delay, keypress duration, timout scale factor
 
 ## Setup
 When run for the first time, there'll be a short setup process, to account for different screensize, scaling, colors, etc.
