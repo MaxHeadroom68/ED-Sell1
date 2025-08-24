@@ -35,7 +35,7 @@ Pause::togglePause()	; make sure to be on the SELL COMMODITY screen when you un-
 
 k := {up: "w", down: "s", left: "a", right: "d", select: "Space", escape:"Escape", click: "LButton", cancel: "RButton"}	; see readKeysConfig() below to customize
 
-;TODO: move WinExist() test into SendAndWaitForColor() before the send
+;TODO: move WinExist() test into SendAndWaitForColor() before the send XX
 ;TODO? write default keys into config.ini if they're not already there, to make it easier to change them?
 ;TODO? adaptively adjust timing based on frequency of retries, so it gets faster as it learns the timing; only active in testMode, if a configvar is set
 ;TODO: make the input keys (Pause, ^!F8, etc) configurable in config.ini, so you can change them to something else if you like.  How to do that without sacrificing readability?
@@ -584,6 +584,12 @@ SendAndWaitForColor(keySeq, btn, col, sec, maxAttempts){
 		GuiCtrlRetries.Text := ++retries
 		logActionRetry()
 	}
+	if (WinExist("A") != edWin.hwnd) {															; if the ED window isn't on top, we can't do anything
+		Le("Looks like you want control of your computer back, so I'm stopping")
+		MsgBox("Looks like you want control of your computer back, so I'm stopping.")			; TODO: optionally recover and continue from here
+		logAction(btn, col, sec, keySeq, "WRONG_WINDOW")
+		return false
+	}
 	if (keySeq)
 	  SendEvent(keySeq)
 	if (WaitForColor(btn, col, (sec * thisTry * timing.retryMult))) {		; rather than delay X times (n=1..X) for s seconds, delay X times for n*s seconds
@@ -626,6 +632,7 @@ smallSalesOnExit(){
 }
 
 smallSales(SellBy){		; SellBy is the number of tons to sell at a time.  TODO needs a better name
+  L("smallSales() starting, batchsize=" SellBy)
   sold := 0
   GuiCtrlRetries := 0
   global PauseOperation
@@ -638,11 +645,6 @@ smallSales(SellBy){		; SellBy is the number of tons to sell at a time.  TODO nee
     SetKeyDelay timing.keyDelay, timing.keyDuration
 	sellKey := (testMode) ? ("{" k.cancel "}") : ("{" k.select "}")								; testMode is true for testing, false for actually selling
 	timekeeper(sold)
-	if (WinExist("A") != edWin.hwnd) {															; if the ED window isn't on top, we can't do anything
-		Lw("Looks like you want control of your computer back, so I'm stopping")
-		MsgBox("Looks like you want control of your computer back, so I'm stopping.")			; this doesn't seem to work, but the test is kicking us out, so I'm calling it a win
-		break
-	}
 	; to differentiate them for debugging, each button/color/seconds tuple should be unique.  it's displayed on the 2nd-from-bottom line in the gui
 	if (WaitForColor(sellButton, "cSFocusZero", 0)) {											; nothing left, we're done!
 	  timekeeper("final")
