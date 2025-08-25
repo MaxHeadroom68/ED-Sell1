@@ -7,7 +7,7 @@
 ; - The README is at https://github.com/MaxHeadroom68/ED-Sell1, with configuration instructions
 ; - config file is at %APPDATA%\Sell1\config.ini, log file is at %LOCALAPPDATA%\Sell1\app_DAY.log
 ; - If you've modified your keys, you may need to modify the #HotIf block below, and your config.ini file
-;   See k{} below for a list of keys' default values, and readKeysConfig() below for details on config.ini
+;   See https://github.com/MaxHeadroom68/ED-Sell1/blob/main/README.md#keymap
 ; - When you first run the script, there will be a brief setup process.  Please do read everything carefully
 ; - When you're ready to start selling, switch the radio buttons on the gui from "Test" to "Sell"
 ; - Since it's reading the screen colors, if it loses sync it'll just stop rather than going crazy
@@ -341,7 +341,7 @@ initButtons(){
 		"(NOTE:  If you've modified your menu-navigation keys`n"
 		"    (wasd, space, mouse buttons), there are special`n"
 		"    instructions in the comments at the top of the script.`n"
-		"    Abort now, read them, come back when you're done)`n`n"
+		"    Cancel now, read them, come back when you're done)`n`n"
 		, "Welcome to " A_ScriptName, "OKCancel Default2")
 	if (result = "Cancel"){
 		return false
