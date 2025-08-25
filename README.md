@@ -104,7 +104,6 @@ If you want to push it faster, I suggest using a small batch (20 tons) of someth
 and watching the average times (in the log, the final summary section)
 and retries (extra entries in attempts[], if they show up) for each button press vs previous tests.
 
-
 If your computer is a bit sluggish and prone to the occasional lag spike before it recognizes a keypress,
 the `retryMult` variable can lengthen your timeouts, so you don't wind up prematurely exiting the loop.
 Try putting a [Timing] section in your config.ini that looks like this:
@@ -116,6 +115,33 @@ retryMult=5
 ```
 If you're still having problems, double keyDelay and keyDuration until things work.
 Once you get few (ideally zero) retries showing up in the log, try lowering `keyDelay`, then `keyDuration`.
+
+#### RiskyRetryA and RiskyRetryB
+```
+[Timing]
+riskyRetryA=2				; how many times do we try clicking on SELL?
+riskyRetryB=1				; how many times do we try clicking on the commodity to go back to the SELL screen?
+```
+If you're feeling lucky, add these to your `[Timing]` section with values of 5, like me!
+It *probably* won't sell everything at once.  But you definitely want to descend into the hangar to sell,
+and selling in Solo mode probably isn't a bad idea.
+
+So, the background: if we select (with {Space}) the SELL button, and nothing happens, what do we do?
+Try selecting it a second time?  But if we try again a *third* time, possibly the computer was just sluggish for
+a few seconds, and then it sees three {Space} characters, and selects the thing under the cursor three times --
+first the SELL button, then the commodity you're selling to go back to the SELL screen, then the third one
+sells your whole inventory.  So we can't try 3 times, we can only try twice.
+
+The problem is even worse on the action after that, selecting the commodity to go back to its SELL COMMODITY screen.
+When we hit {Space} to select the commodity the cursor is at, and nothing happens, do we try a second time?
+If we do, maybe it's the same problem -- sluggish computer, which then wakes up and processes both {Space} keypresses.
+The first selects your commodity, and the second sells your whole inventory.
+
+If you use the default values, you're risking a single timeout causing the script to quit.  On the other hand,
+if you set riskyRetryA and riskyRetryB to 5 like I do, you're risking a lag spike selling your whole inventory.
+
+(I have an idea for how to improve this, but it's messy.)
+
 
 
 ## notifyProgram

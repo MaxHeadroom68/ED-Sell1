@@ -168,8 +168,8 @@ readKeysConfig() {
 	L(msg)
 }
 
-;timing :=	{keyDelay: 125, keyDuration: 75, extraSellWait: 50, afterWFCPS:50, retryMult: 1, retries: 4}		; conservative values, used in v0.2.0
-timing :=	{keyDelay:  20, keyDuration: 50, extraSellWait:  0, afterWFCPS:0,  retryMult: 1, retries: 5}		; aggressive values, used in v0.3.0
+;timing :=	{keyDelay: 125, keyDuration: 75, extraSellWait: 50, afterWFCPS:50, retryMult: 1, retries: 4, riskyRetryA:2, riskyRetryB:1}		; conservative values, used in v0.2.0
+timing :=	{keyDelay:  20, keyDuration: 50, extraSellWait:  0, afterWFCPS:0,  retryMult: 1, retries: 5, riskyRetryA:2, riskyRetryB:1}		; aggressive values, used in v0.3.0
 ; in %APPDATA%\Sell1\config.ini, create a [Timing] section, then you can set:
 ; keyDelay			time between key presses						(8x / loop)
 ; keyDuration		how long to hold down each key					(8x / loop)
@@ -177,10 +177,12 @@ timing :=	{keyDelay:  20, keyDuration: 50, extraSellWait:  0, afterWFCPS:0,  ret
 ; afterWFCPS		wait after waitForColorPixelSearch()			(9x / loop)
 ; retryMult			multiply the hard-coded delay between retries by this factor
 ; retries			number of retries to do before giving up
+; riskyRetryA		number of times to try the SELL button			(3 or more risks selling your inventory if the client lags)
+; riskyRetryB		number of times to try selecting the commodity	(2 or more risks selling your inventory if the client lags)
 readTimingConfig() {
 	global timing
 	msg := "readTimingConfig() "
-	for keyName in ["keyDelay", "keyDuration", "extraSellWait", "afterWFCPS", "retryMult", "retries"] {
+	for keyName in ["keyDelay", "keyDuration", "extraSellWait", "afterWFCPS", "retryMult", "retries", "riskyRetryA", "riskyRetryB"] {
 		timing.%keyName% := IniRead(config.file, "Timing", keyName, timing.%keyName%)
 		msg .= " " keyName "=" timing.%keyName%
 	}
@@ -680,9 +682,9 @@ smallSales(saleSize){		; saleSize is the number of tons to sell at a time.
 	if (!SendAndWaitForColor("{" k.down "}", sellButton, "cSFocus", 3, timing.retries))			; down to the sell button; needs a different timeout from the previous SellButton/colorSelectedFocus
 	  break						
 	GuiCtrlSold.Text := (sold += saleSize)
-	if (!SendAndWaitForColor(sellKey, sellTab, "cSNoFocus", 10, 2))								; sell and wait for the sell window to go away, revealing sellTab without the dimming.  only try twice; don't sell the whole hold if there's a server burp.  that's why the timeout is so long
+	if (!SendAndWaitForColor(sellKey, sellTab, "cSNoFocus", 10, timing.riskyRetryA))			; sell and wait for the sell window to go away, revealing sellTab without the dimming.  only try twice; don't sell the whole hold if there's a server burp.  that's why the timeout is so long
 	  break
-	if (!SendAndWaitForColor("{" k.select "}", sellTab, "cSNoFocusDim", 4, timing.retries))		; again select the commodity from the list
+	if (!SendAndWaitForColor("{" k.select "}", sellTab, "cSNoFocusDim", timing.riskyRetryB, timing.retries))		; again select the commodity from the list
 	  break
 	if PauseOperation {
 	  timekeeper("pause"), logActionPause("pause"), GuiCtrlPaused.Text := "Paused"
