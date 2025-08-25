@@ -3,7 +3,7 @@ to sell one ton of goods at a time, for reasons.
 
 ## Features
 
-- Peeps pixels to stay in sync with the ED UI.
+- Peeps pixels to stay in sync with the ED UI.  Reacts immediately when the UI responds, doesn't waste time waiting for a timer.
 - If it loses sync, it'll stop rather than wandering through the menu and selling your Corvette.
 - If it thinks the only thing wrong is the game didn't see a keypress, it'll wait a bit and try again.
 (It'll try a few times, except the SELL button it'll only try twice, to avoid selling your entire inventory at once.)
@@ -26,6 +26,7 @@ Also links to config, log, and script directories.
 
 When you want to start selling:
 - get onto the SELL COMMODITY screen
+- (no need to be on the SELL button specifically)
 - quantity should be something like "720/720"
 - press Ctl-Alt-F8 to start selling 1 ton at a time
 
@@ -45,14 +46,22 @@ Preventing this is more trouble than it's worth, so we're calling it a feature.
 (If you don't wish to sell them all, you may be in for a surprise.)
 
 ## Logging
-Log is in %LocalAppData%\Sell1\app_DAY.log, rotates each weekday.
-At the end of a batch, it shows a summary of retries.  On failure, records the cause.
-Very helpful for diagnosing problems, especially if you sell a small batch and set "minloglevel=0".
+Log is %LocalAppData%\Sell1\app_DAY.log, rotates each weekday.  There's a link to it on the GUI.
+
+At the end of a batch, it shows a summary broken down by each UI action -- key sent to ED,
+which pixel it watched and what color it was waiting for, time spent, retries.
+Gives some debugging data about the last few UI actions.  On failure, records the cause.
+
+Very helpful for diagnosing problems, or improving the timing variables,
+especially if you sell a small batch and set "minloglevel=0".
+
 If something has gone horribly wrong with setup, there may be useful info in the console,
 viewable with [DebugView](https://download.sysinternals.com/files/DebugView.zip).
 
-## Config
-Edit %AppData%\Sell1\config.ini, then reload the script.  Below are some config variables with their default values.
+## Configuration
+Config file is %AppData%\Sell1\config.ini, there's a link to it on the GUI.
+Edit it config.ini, save it, then reload the script with Ctl-Alt-F9.
+Below are some config variables with their default values.
 
 (warning: just use the "key=value" parts.  config.ini doesn't support comments, so don't cut'n'paste any line with comments on it.)
 ```
@@ -63,7 +72,9 @@ optionExitGameAtEnd=0		; 1 - show a checkbox on the GUI; click it to exit the ga
 saleSize2ndKey=2			; Ctl-Alt-F7 will sell this many tons at a time
 ```
 
+#### Keymap
 These are the keys we use to navigate around the ED UI.
+If you've modified your keymap, you'll need to describe your changes here.
 Available key names are listed in https://www.autohotkey.com/docs/v2/KeyList.htm,
 Detailed info on the format of config.ini is at https://www.autohotkey.com/docs/v2/lib/IniRead.htm
 ```
@@ -80,6 +91,7 @@ cancel=RButton
 If you want to pause with something besides the Pause button, you still need to edit the script (until I fix that...)
 Look for the #HotIf section close to the top.
 
+#### Timing
 ```
 [Timing]
 keyDelay=20			; time between keypresses
@@ -89,7 +101,7 @@ retryMult=1			; multiply the retry delay periods by this number
 On my computer, these values are as low as I could get them while seeing very few retries.
 If you want to push it faster, I suggest using a small batch (20 tons) of something cheap at your local station,
 and watching the average times (in the log, the final summary section)
-and retries (2nd++ entries in attempts[], if they show up) for each button press vs previous tests.
+and retries (extra entries in attempts[], if they show up) for each button press vs previous tests.
 
 
 If your computer is a bit sluggish and prone to the occasional lag spike before it recognizes a keypress,
