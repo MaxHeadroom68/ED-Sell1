@@ -36,7 +36,9 @@ Pause::togglePause()	; make sure to be on the SELL COMMODITY screen when you un-
 
 k := {up: "w", down: "s", left: "a", right: "d", select: "Space", escape:"Escape", click: "LButton", cancel: "RButton"}	; see readKeysConfig() below to customize
 
-;TODO: run a program (specified in config.ini) when finished.  supply some environment variables with useful stats in them, like success/fail string, total sales, total time
+;TODO: only try the second space (selecting the commodity) once.  put a configvar on the retry for this and pressing SELL
+;TODO: rather than retry either {Space} action, wait a bit and check if we've got control of the UI, or if things are hung entirely
+;TODO: optionally drop a .csv in config.logdir with everything from logAction() and prevAction{}
 ;TODO: make the input keys (Pause, ^!F8, etc) configurable in config.ini, so you can change them to something else if you like.  How to do that without sacrificing readability?
 ;TODO: figure out what's up with the reported cursor xy not matching the window
 
@@ -71,7 +73,7 @@ activateEDWindow() {
 }
 
 ; Configuration - store settings in %APPDATA%\SCRIPTNAME\config.ini
-config := {fileName:"config.ini", defaultSection:"Settings", minLogLevel:1, saleSize2ndKey:2, optionExitGameAtEnd:0, iniVersion:""}
+config := {fileName:"config.ini", defaultSection:"Settings", minLogLevel:1, saleSize2ndKey:2, optionExitGameAtEnd:0, notifyProgram:"", iniVersion:""}
 initConfig() {
 	config.appDir := A_ScriptDir
 	config.appName := RegExReplace(A_ScriptName, "\.[^.]*$")  ; Remove extension
@@ -94,6 +96,7 @@ initConfig() {
 	config.minLogLevel			:= readConfigVar("minLogLevel", config.minLogLevel)
 	config.saleSize2ndKey		:= readConfigVar("saleSize2ndKey", config.saleSize2ndKey)
 	config.optionExitGameAtEnd	:= readConfigVar("optionExitGameAtEnd", config.optionExitGameAtEnd)
+	config.notifyProgram		:= readConfigVar("notifyProgram", config.notifyProgram)
 	config.iniVersion := readConfigVar("version", config.iniVersion)
 }
 initConfig()
@@ -257,8 +260,9 @@ GuiCtrlTry       := G.Add("Text", "X+0 ys", "00")
 GuiCtrlRetries   := G.Add("Text", "X+0 ys", "0000")
 
 G.Add("Link", "X9 Y+3 Section",  '<a href="' config.dir    '">Config</a>')
-G.Add("Link", "X+12 ys",         '<a href="' config.logdir '">Log</a>')
-G.Add("Link", "X+12 ys",         '<a href="' config.appdir '">Script</a>')
+G.Add("Link", "X+7 ys",         '<a href="' config.logdir '">Log</a>')
+G.Add("Link", "X+7 ys",         '<a href="' config.appdir '">Script</a>')
+G.Add("Link", "X+7 ys",         '<a href="https://github.com/MaxHeadroom68/ED-Sell1/blob/dev/README.md">Help</a>')
 
 GuiCtrlWaitBtn   := G.Add("Text", "X9 Y+3 Section", "Wait for")
 GuiCtrlWaitColor := G.Add("Text", "X+3 ys", "Wait for color")
@@ -467,6 +471,8 @@ logAction(btn, col, sec, keySeq, failMsg:=""){									; we don't know how long 
 		actionLast[prevAction.id] := {duration:duration, time:prevAction.tick, failMsg:failMsg, attempts:prevAction.attempts, pixelWaits:prevAction.pixelWaits, keySeq:prevAction.keySeq}
 	}
 	prevAction.id := id, prevAction.tick := tick, prevAction.attempts := 1, prevAction.pixelWaits := 0, prevAction.keySeq := keySeq		; record the just-started action in prevAction
+	if failMsg
+		EnvSet("SELL1_STATUS", failMsg)
 }
 logActionRetry(){
 	global prevAction
@@ -475,6 +481,7 @@ logActionRetry(){
 }
 logActionFinal(){
 	idlen := 0
+	totalRetries := 0
 	for id in actionIds
 		idlen := Max(idlen, StrLen(id))
 	L("last actions:")
@@ -493,11 +500,13 @@ logActionFinal(){
 			arr.Pop()
 		attMsg := ""
 		loop stat.attempts.Length {
+			totalRetries += (A_Index>1 ? stat.attempts[A_Index] : 0)
 			attMsg .= (A_Index>1 ? ", " : "") . stat.attempts[A_Index]
 		}
 		L(Format("id={:-" idLen "} avg={:-4} duration={:-7} min={:-4} max={:-4} pxWaits={:-6} attempts={:-12} keySeq={}",
 			id, avg, stat.duration, stat.min, stat.max, stat.pixelWaits, "[" attMsg "]", stat.keySeq))
 	}
+	EnvSet("SELL1_RETRIES", totalRetries)
 }
 logActionPause(mode) {
 	static pauseTime := 0
@@ -623,6 +632,9 @@ VerifyStartingPosition(){
 }
 
 smallSalesOnExit(){
+	L('smallSalesOnExit() config.notifyProgram="' config.notifyProgram '"')
+	if (config.notifyProgram)
+		Run(config.notifyProgram)
 	Ld("smallSalesOnExit() config.optionExitGameAtEnd=" config.optionExitGameAtEnd " GuiCtrlExitGameAtEnd.Value=" GuiCtrlExitGameAtEnd.Value)
 	if (GuiCtrlExitGameAtEnd.Value){
 		SetKeyDelay 2000, 200
@@ -636,6 +648,7 @@ smallSales(saleSize){		; saleSize is the number of tons to sell at a time.
   sold := 0
   GuiCtrlRetries := 0
   global PauseOperation
+  EnvSet("SELL1_SALESIZE", saleSize)
   logActionInit()
   if !VerifyStartingPosition()
 	return beepFailure()
@@ -645,10 +658,11 @@ smallSales(saleSize){		; saleSize is the number of tons to sell at a time.
     SetKeyDelay timing.keyDelay, timing.keyDuration
 	sellKey := (testMode) ? ("{" k.cancel "}") : ("{" k.select "}")								; testMode is true for testing, false for actually selling
 	timekeeper(sold)
+	EnvSet("SELL1_SOLD", sold)
 	; to differentiate them for debugging, each button/color/seconds tuple should be unique.  it's displayed on the 2nd-from-bottom line in the gui
 	if (WaitForColor(sellButton, "cSFocusZero", 0)) {											; nothing left, we're done!
 	  timekeeper("final")
-	  logAction("", "", 0, "", "successful run")												; write the final action to the log
+	  logAction("", "", 0, "", "successful_finish")												; write the final action to the log
 	  logActionFinal()																			; write the summary statistics to the log
 	  smallSalesOnExit()
 	  return beepSuccess()

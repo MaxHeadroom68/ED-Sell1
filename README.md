@@ -70,6 +70,7 @@ minLogLevel=1				; 0 - debug (logs ~15 lines per sale);  1 - important stuff and
 logfileopenmode=a			; a - append to today's logfile;  w - clear out log file before each run
 optionExitGameAtEnd=0		; 1 - show a checkbox on the GUI; click it to exit the game when this load is done
 saleSize2ndKey=2			; Ctl-Alt-F7 will sell this many tons at a time
+notifyProgram=""			; a string to be Run() when we're done selling
 ```
 
 #### Keymap
@@ -115,3 +116,16 @@ retryMult=5
 ```
 If you're still having problems, double keyDelay and keyDuration until things work.
 Once you get few (ideally zero) retries showing up in the log, try lowering `keyDelay`, then `keyDuration`.
+
+
+## notifyProgram
+
+If `Settings.notifyProgram` is set, it is Run(), and should probably be some kind of script.
+A few environment variables are set, to provide a bit more information in your notification.
+
+- `SELL1_STATUS`  A short string giving a general impression of how things went.
+- `SELL1_SALESIZE`  How many tons are sold at a time.
+- `SELL1_SOLD`  How many tons were sold.
+- `SELL1_RETRIES`  How many times we timed out and tried again.
+
+A stub `notify.py` is included for testing purposes, which will log these variables to `%LocalAppData%\Sell1\notify.log`.
