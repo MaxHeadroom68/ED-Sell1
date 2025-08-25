@@ -154,4 +154,4 @@ A few environment variables are set, to provide a bit more information in your n
 - `SELL1_SOLD`  How many tons were sold.
 - `SELL1_RETRIES`  How many times we timed out and tried again.
 
-A stub `notify.py` is included for testing purposes, which will log these variables to `%LocalAppData%\Sell1\notify.log`.
+A `notify-stub.py` is included for testing purposes, which will log these variables to `%LocalAppData%\Sell1\notify.log`.
