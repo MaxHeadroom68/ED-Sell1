@@ -4,62 +4,64 @@
 
 ; INSTRUCTIONS:
 ; - This is a script for AutoHotKey v2.  https://www.autohotkey.com/docs/v2/howto/Install.htm
-; - when you're ready to start selling, switch the radio buttons on the gui from "Test" to "Sell"
-; - since it's reading the screen colors, if it loses sync it'll just stop rather than going crazy
-; - no need to tell it how many to sell, it'll empty your hold and stop
-; - if you have a few different commodities in your hold and wish to sell them all,
-;   filter the commodities list to show "in inventory", and start with the top one in the list
-; - if there's a lag spike or the server loses a keypress, it'll verify it's still in the right place and retry (up to 3 times)
+; - The README is at https://github.com/MaxHeadroom68/ED-Sell1, with configuration instructions
+; - config file is at %APPDATA%\Sell1\config.ini, log file is at %LOCALAPPDATA%\Sell1\app_DAY.log
+; - If you've modified your keys, you may need to modify the #HotIf block below, and your config.ini file
+;   See k{} below for a list of keys' default values, and readKeysConfig() below for details on config.ini
+; - When you first run the script, there will be a brief setup process.  Please do read everything carefully
+; - When you're ready to start selling, switch the radio buttons on the gui from "Test" to "Sell"
+; - Since it's reading the screen colors, if it loses sync it'll just stop rather than going crazy
+; - No need to tell it how many to sell, it'll empty your hold and stop
+; - If you have a few different commodities in your hold and wish to sell them all,
+;   filter the commodities list to only show "in inventory", and start with the top one in the list
+; - If there's a lag spike or the server loses a keypress, it'll verify it's still in the right place and retry a few times
 ;   (the "retries=" on the popup is the total number of retries since you hit ^!F8), "try=" is how many of the 3 retries you're on
-; - if you want an option to sell other size lots (like 2, or 8), edit the ^!F7 line below
-; - you can get faster sales and better reliability by descending into the hangar before selling
+; - If you want an option to sell other size lots (like 2, or 8), edit the ^!F7 line below
+; - You can get faster sales and better reliability by descending into the hangar before selling
 ;   since your game client doesn't have to think about all those other ships flying around
-; - if you're having a hard time making this work well, AHK comes with WindowSpy to look at pixel locations and colors,
-;   and you can edit %APPDATA%\config.ini to change locations of the pixels we're looking at, and the colors we're looking for
+; - in the [Settings] section of config.ini, add "optionExitGameAtEnd=1" if you want a checkbox that'll log out of the game when we're done selling a load
+; - If you're having a hard time making this work well, AHK comes with WindowSpy to look at pixel locations and colors,
+;   and you can edit %APPDATA%\APPNAME\config.ini to change locations of the pixels we're looking at, and the colors we're looking for
 ;   but you shouldn't need to do that, and I'd love it if you could let me know by filing an issue on GitHub
-; - speed on my machine: 4.3sec/sale at 720tons, 2.7sec/sale at 10tons
+; - Speed on my machine: 4.3sec/sale at 780tons, 2.9sec/sale at 10tons
 
 #HotIf WinActive("ahk_class FrontierDevelopmentsAppWinClass")
 ^!F8::smallSales(1)
-^!F7::smallSales(2)		; SmallSales will take any number you like, but keep it small or it'll be slow
-^!F9:: Send("{" k.up " up}{" k.down " up}{" k.left " up}{" k.right " up}{" k.select " up}"), Lw("Reload"), SoundBeep(2000, 500), Reload()  ; Reload the script  [shamelessly stolen from OB]
+^!F7::smallSales(config.saleSize2ndKey)		; SmallSales will take any number you like, but keep it small or it'll be slow.  change in config.ini, or just edit this here
+^!F9:: Send("{" k.up " up}{" k.down " up}{" k.left " up}{" k.right " up}{" k.select " up}"), Lw("Reload"), SoundBeep(523, 150), Reload()  ; Reload the script  [shamelessly stolen from OB]
 ^!F10::initButtons()	; ask where the buttons are, figure out the colors
+^!F12::setTestMode(!testMode)	; toggle test mode
 Pause::togglePause()	; make sure to be on the SELL COMMODITY screen when you un-pause
 #HotIf 
 
-k := {up: "w", down: "s", left: "a", right: "d", select: "Space", click: "LButton", cancel: "RButton"}	; see readKeysConfig() below to customize
+k := {up: "w", down: "s", left: "a", right: "d", select: "Space", escape:"Escape", click: "LButton", cancel: "RButton"}	; see readKeysConfig() below to customize
 
-;TODO: add an advisory in setup, to drop into the hangar for faster & more reliable sales
-;TODO: add a GUI line with links to config.ini, log.txt, and ...?
-;TODO: at top of Instructions, point out the config file, & log file
-;TODO: at top of Instructions, point folks with modified keys to the #HotIf block, k{}, and readKeysConfig()
-;TODO: add comment to readKeysConfig() to point reader to default keys in k definition above
-;TODO: add an advisory in setup, if you have modified your keys, to change them in the config.ini file, then reload the script
-;TODO: add a (config-enabled) line at exit that logs out from the game: cancel cancel cancel esc up select right select ;TODO: add "esc" to k.elements
-;TODO: replace beeps with beepSuccess() and beepError(), and use better riffs
-;TODO: put version number in the config.ini, rename cSFocusDim to cSNoFocusDim
-;TODO? write default keys into config.ini if they're not already there, to make it easier to change them?
-;TODO? adaptively adjust timing based on frequency of retries, so it gets faster as it learns the timing; only active in testMode, if a configvar is set
+;TODO: rather than retry either {Space} action, wait a bit and check if we've got control of the UI, or if things are hung entirely
+;TODO: optionally drop a .csv in config.logdir with everything from logAction() and prevAction{}
 ;TODO: make the input keys (Pause, ^!F8, etc) configurable in config.ini, so you can change them to something else if you like.  How to do that without sacrificing readability?
 ;TODO: figure out what's up with the reported cursor xy not matching the window
 
 strRepeat := (string, times) => strReplace( format( "{:" times "}",  "" ), " ", string )
-beepExit := () => (SoundBeep(523, 250), SoundBeep(500, 250), SoundBeep(523, 250))
-beepDone := () => (SoundBeep(500, 250), SoundBeep(500, 50), SoundBeep(523, 1000))
-Lx := (msg) => OutputDebug(A_ScriptName " " msg)		; log truly heinous errors to the console.  View with DebugView from MS
+beepHello := () => (SoundBeep(330,120), Sleep(30), SoundBeep(660,100), Sleep(40), SoundBeep(440,150), Sleep(20), SoundBeep(494,120))
+beepConfigure := () => (SoundBeep(523,180), Sleep(40), SoundBeep(659,160), Sleep(50), SoundBeep(784,220))
+beepStart := () => (SoundBeep(587,200), SoundBeep(523,100))
+beepSuccess := () => (SoundBeep(523,300), Sleep(80), SoundBeep(523, 150), Sleep(5), SoundBeep(784,1000))
+beepFailure := () => (SoundBeep(294,400), Sleep(150), SoundBeep(277,500), Sleep(180), SoundBeep(262,500), Sleep(180), SoundBeep(247,1200))
+Lx := (msg) => OutputDebug(A_ScriptName " " msg)				; log truly heinous errors to the console.  View with DebugView from MS
 Lx("uhhh, everything's under control, situation normal")		; script starting up.  (classical reference)
 
-debugMode := false
-testMode := true		; set to true when you're getting set up, so we hit RMouse to cancel, rather than spacebar to actually sell the goods
+debugMode := false			; used for random things during development
+testMode := true			; set to true when you're getting set up, so we hit RMouse to cancel, rather than spacebar to actually sell the goods
 PauseOperation := false
-timing := {interKey: 125, keyDuration: 75, extraSellWait: 50, retryMult: 1, retries: 4}		; see readTimingConfig() below, to make timing more or less aggressive
-edWin := {x: 0, y: 0, width: 0, height: 0, hwnd: 0}		; Elite Dangerous window
+edWin := {x: 0, y: 0, width: 0, height: 0, hwnd: 0}											; Elite Dangerous window
 
 if (edWin.hwnd := WinExist("ahk_exe EliteDangerous64.exe")){
 	WinActivate			; give ED focus, even though our window is always on top
 	WinGetPos(&x, &y, &w, &h)
 	edWin.x := x, edWin.y := y, edWin.width := w, edWin.height := h
+	beepHello()
 } else {
+	beepFailure()
 	MsgBox("Elite Dangerous not running, please start the game and try again.")
 	exitApp
 }
@@ -70,8 +72,9 @@ activateEDWindow() {
 }
 
 ; Configuration - store settings in %APPDATA%\SCRIPTNAME\config.ini
-config := {fileName: "config.ini", defaultSection: "Settings", minLogLevel: 1}
+config := {fileName:"config.ini", defaultSection:"Settings", minLogLevel:1, saleSize2ndKey:2, optionExitGameAtEnd:0, notifyProgram:"", iniVersion:""}
 initConfig() {
+	config.appDir := A_ScriptDir
 	config.appName := RegExReplace(A_ScriptName, "\.[^.]*$")  ; Remove extension
 	config.dir := EnvGet("APPDATA") . "\" . config.appName
 	if !DirExist(config.dir)
@@ -80,17 +83,20 @@ initConfig() {
 	if !FileExist(config.file) {
 		writeConfigVar("testMode", testMode ? "1" : "0")  ; store testMode as 1 or 0
 	}
-	openMode := "a"  ; open logfile in append mode by default
-	;openMode := "w"  ; during testing, overwrite the log each time, to keep things tidy
 	localAppData := EnvGet("LocalAppData") || EnvGet("TEMP") || A_Temp
 	config.logdir := localAppData "\" config.appName
 	if !DirExist(config.logdir)
 		DirCreate(config.logdir)
 	config.logFile := config.logdir "\app_" FormatTime(A_Now, "ddd") ".log"  ; Log file named with the current weekday
+	openMode := readConfigVar("logfileopenmode", "a")		; can use "w" if you want to start with a fresh log file each time
 	if FileExist(config.logFile) && DateDiff(A_Now, FileGetTime(config.logFile, "M"), "Days") > 2
 		openMode := "w"  ; If the log file is older than 2 days, overwrite it
 	config.logHandle := FileOpen(config.logFile, openMode)  ; Open log file for appending
-	config.minLogLevel := IniRead(config.file, config.defaultSection, "minLogLevel", config.minLogLevel)
+	config.minLogLevel			:= readConfigVar("minLogLevel", config.minLogLevel)
+	config.saleSize2ndKey		:= readConfigVar("saleSize2ndKey", config.saleSize2ndKey)
+	config.optionExitGameAtEnd	:= readConfigVar("optionExitGameAtEnd", config.optionExitGameAtEnd)
+	config.notifyProgram		:= readConfigVar("notifyProgram", config.notifyProgram)
+	config.iniVersion := readConfigVar("version", config.iniVersion)
 }
 initConfig()
 
@@ -122,12 +128,10 @@ writeConfigVar(key, value) {
 }
 
 readButtonConfig(btn){
-	;buttonMsgBox(btn, btn.name " PREload`n")
 	for propName in ["x", "y"]
 		btn.%propName% := IniRead(config.file, btn.name, propName, 0)
 	for propName in colorNames
 		btn.HasProp(propname) && btn.%propName% := IniRead(config.file, btn.name, propName, 0x000000)
-	buttonMsgBox(btn, btn.name " LOAD`n")
 }
 writeButtonConfig(btn){
 	props := ""
@@ -150,50 +154,59 @@ buttonsAreInitialized(){
 
 ; If you use Dvorak/Colemak/etc, you can change the keys (and mouse buttons) we use to navigate around the UI
 ; In %APPDATA%\Sell1\config.ini add a line "[EDkeys]" to start the section, then add lines like "up=w", "down=s", etc.
+; See the definition of k{} (near the top of this file) for the default key names and values
 ; Available keys are listed in https://www.autohotkey.com/docs/v2/KeyList.htm
 ; Detailed info on the format of config.ini is at https://www.autohotkey.com/docs/v2/lib/IniRead.htm
 readKeysConfig() {	
 	global k
-	for keyName in ["up", "down", "left", "right", "select", "click", "cancel"] {
+	msg := "readKeysConfig() "
+	for keyName in ["up", "down", "left", "right", "select", "escape", "click", "cancel"] {
 		k.%keyName% := IniRead(config.file, "EDkeys", keyName, k.%keyName%)
+		msg .= " " keyName "=" k.%keyName%
 	}
+	L(msg)
 }
 
+;timing :=	{keyDelay: 125, keyDuration: 75, extraSellWait: 50, afterWFCPS:50, retryMult: 1, retries: 4, riskyRetryA:2, riskyRetryB:1}		; conservative values, used in v0.2.0
+timing :=	{keyDelay:  20, keyDuration: 50, extraSellWait:  0, afterWFCPS:0,  retryMult: 1, retries: 5, riskyRetryA:2, riskyRetryB:1}		; aggressive values, used in v0.3.0
 ; in %APPDATA%\Sell1\config.ini, create a [Timing] section, then you can set:
-; interkey			time between key presses
-; keyDuration		how long to hold down each key
-; extraSellWait		extra wait before the sell button is pressed
-; retryMult			multiply the hard-coded delay between retries by this factor, default is 1
+; keyDelay			time between key presses						(8x / loop)
+; keyDuration		how long to hold down each key					(8x / loop)
+; extraSellWait		extra wait before the sell button is pressed	(1x / loop)
+; afterWFCPS		wait after waitForColorPixelSearch()			(9x / loop)
+; retryMult			multiply the hard-coded delay between retries by this factor
 ; retries			number of retries to do before giving up
+; riskyRetryA		number of times to try the SELL button			(3 or more risks selling your inventory if the client lags)
+; riskyRetryB		number of times to try selecting the commodity	(2 or more risks selling your inventory if the client lags)
 readTimingConfig() {
 	global timing
-	for keyName in ["interKey", "keyDuration", "extraSellWait", "retryMult", "retries"] {
+	msg := "readTimingConfig() "
+	for keyName in ["keyDelay", "keyDuration", "extraSellWait", "afterWFCPS", "retryMult", "retries", "riskyRetryA", "riskyRetryB"] {
 		timing.%keyName% := IniRead(config.file, "Timing", keyName, timing.%keyName%)
+		msg .= " " keyName "=" timing.%keyName%
 	}
+	L(msg)
 }
 
-; debugging convenience
-buttonMsgBox(btn, msg := ""){
-	for propName in ["name", "x", "y", "lum"]
-		if (btn.HasProp(propName))
-			msg := msg . propName . ": " . btn.%propName% . "`n"
-	for propName in colorNames
-		if (btn.HasProp(propName))
-			msg := msg . propName . ": " . Format("{1:#06X}", btn.%propName%) . "`n"
-	if (debugMode) {
-		MsgBox(msg)
-		activateEDWindow()
+;update config.ini, convert 0.2.0 to 0.3.0
+if (config.iniVersion="") {
+	; get cSFocusDim (the wrong name for the color, which we used before 0.3.0), delete it from config.ini, save it back as cSNoFocusDim so it's there when we readButtonConfig(sellTab)
+	if (color := IniRead(config.file, "sellTab", "cSFocusDim")) {
+		IniDelete(config.file, "sellTab", "cSFocusDim")
+		IniWrite(color, config.file, "sellTab", "cSNoFocusDim")
 	}
+	config.iniVersion := "0.3.0"
+	writeConfigVar("version", config.iniVersion)
 }
 
-colorNames := ["cSFocus", "cSNoFocus", "cSFocusDim", "cSFocusZero", "cSNoFocusZero"]
+colorNames := ["cSFocus", "cSNoFocus", "cSNoFocusDim", "cSFocusZero", "cSNoFocusZero"]
 sellTab := {				; coordinates and colors for the SELL tab in the commodities market
 	name: "sellTab", x: 0, y: 0, val: 0, lum: 0,
-	cSFocus:	0,			; colorSelectedFocus		-- focus is on the sell tab
-	cSNoFocus:	0,			; colorSelectedNoFocus		-- selected (vs buy) but focus is elsewhere
-	cSFocusDim:	0			; colorSelectedFocusDim	-- selected, not in focus, and sell-item overlay dims this layer  (yup, should be named cSNoFocusDim.  oh well, too late now)
+	cSFocus:		0,		; colorSelectedFocus		-- focus is on the sell tab
+	cSNoFocus:		0,		; colorSelectedNoFocus		-- selected (vs buy) but focus is elsewhere
+	cSNoFocusDim:	0		; colorSelectedFocusDim		-- selected, not in focus, and sell-item overlay dims this layer
 	; good values for 1920x1080: x: 180, y: 420
-	; values for stock UI colors: cSFocus: 0xFF6F00, cSNoFocus: 0x4E2302, cSFocusDim: 0x1F0E01
+	; values for stock UI colors: cSFocus: 0xFF6F00, cSNoFocus: 0x4E2302, cSNoFocusDim: 0x1F0E01
 	; texture means we gotta find the brightest pixel, look at 4 vertically stacked pixels for the brightest one
 }
 sellButton := {				; coordinates and colors for the SELL button in the commodities market
@@ -214,26 +227,16 @@ if (!buttonsAreInitialized()) {
 
 G := Gui("AlwaysOnTop -MaximizeBox -MinimizeBox", config.appName)
 G.Add("Text", "X9 Y+8 Section", "Ctl-Alt-F8 to sell 1 ton lots")
-G.Add("Text", "Y+2", "Ctl-Alt-F7 to sell 2 ton lots")
+G.Add("Text", "Y+2", "Ctl-Alt-F7 to sell " config.saleSize2ndKey " ton lots")
 G.Add("Text", "Y+2", "Ctl-Alt-F9 to reload script")
 G.Add("Text", "Y+2", "Ctl-Alt-F10 to wipe config")
 G.Add("Text", "Y+2", "Pause to pause/resume")
 
-G.Add("Text", "Y+5 Section", "sold =")
-GuiCtrlSold      := G.Add("Text", "X+3 ys", "0000")
-GuiCtrlPaused    := G.Add("Text", "X+3 ys", "Starting up  ")
-
-					G.Add("Text", "X9 Y+3 Section", "try=")
-GuiCtrlTry       := G.Add("Text", "X+0 ys", "00")
-					G.Add("Text", "X+5 ys", "retries=")
-GuiCtrlRetries   := G.Add("Text", "X+0 ys", "0000")
-
 testMode := Integer(readConfigVar("testMode", 1)) ? 1 : 0		; for testing mode, we hit RMouse to cancel rather than Space to sell
-{
-	notTestMode := !testMode										; next line can't use an expression, gotta be a variable.  /sigh
-	G.Add("Radio", "X9 Y+7 Section Checked" notTestMode, "Sell").OnEvent("Click", handleTestMode)
-}
-GuiCtrlTestMode := G.Add("Radio", "vtestMode X+3 ys Checked" testMode, "Test")			
+notTestMode := !testMode										; next line can't use an expression, gotta be a variable.  /sigh  Definitely don't use this anywhere
+GuiCtrlNotTestMode := G.Add("Radio", "X9 Y+7 Section Checked" notTestMode, "Sell")												; or this, aside from setTestMode()
+GuiCtrlNotTestMode.OnEvent("Click", handleTestMode)
+GuiCtrlTestMode := G.Add("Radio", "vtestMode X+3 ys Checked" testMode, "Test")
 GuiCtrlTestMode.OnEvent("Click", handleTestMode)
 handleTestMode(*) {												; whichever radio button is clicked, we read the value of GuiCtrlTestMode
 	global testMode
@@ -242,10 +245,25 @@ handleTestMode(*) {												; whichever radio button is clicked, we read the 
 	Ld("handleTestMode() testMode: " testMode)
 	activateEDWindow()
 }
-setTestMode(mode){		; TODO use default value := 1
+setTestMode(mode := 1){
 	GuiCtrlTestMode.Value := (mode ? 1 : 0)
+	GuiCtrlNotTestMode.Value := !GuiCtrlTestMode.Value			; it hurts me that this has to be global
 	handleTestMode()
 }
+
+G.Add("Text", "X9 Y+5 Section", "sold =")
+GuiCtrlSold      := G.Add("Text", "X+3 ys", "0000")
+GuiCtrlPaused    := G.Add("Text", "X+3 ys", "Starting up  ")
+
+					G.Add("Text", "X9 Y+3 Section", "try=")
+GuiCtrlTry       := G.Add("Text", "X+0 ys", "00")
+					G.Add("Text", "X+5 ys", "retries=")
+GuiCtrlRetries   := G.Add("Text", "X+0 ys", "0000")
+
+G.Add("Link", "X9 Y+3 Section",  '<a href="' config.dir    '">Config</a>')
+G.Add("Link", "X+7 ys",         '<a href="' config.logdir '">Log</a>')
+G.Add("Link", "X+7 ys",         '<a href="' config.appdir '">Script</a>')
+G.Add("Link", "X+7 ys",         '<a href="https://github.com/MaxHeadroom68/ED-Sell1/blob/main/README.md">Help</a>')
 
 GuiCtrlWaitBtn   := G.Add("Text", "X9 Y+3 Section", "Wait for")
 GuiCtrlWaitColor := G.Add("Text", "X+3 ys", "Wait for color")
@@ -253,6 +271,11 @@ GuiCtrlWaitSec   := G.Add("Text", "X+3 ys", "XX")
 
 GuiCtrlSellTabColor    := G.Add("Text", "X9 Y+2 Section", "0xXXXXXX")
 GuiCtrlSellButtonColor := G.Add("Text", "X+3 ys", "0xXXXXXX")
+if (config.optionExitGameAtEnd) {
+	GuiCtrlExitGameAtEnd := G.Add("CheckBox", "X9 Y+3", "Exit Game At End?")
+	GuiCtrlExitGameAtEnd.OnEvent("Click", (*) => activateEDWindow())
+} else
+	GuiCtrlExitGameAtEnd := {Value:0}			; regardless of the value of config.optionExitGameAtEnd, we'll want to check this later
 
 {	; get saved GUI position, or default to bottom-left of the ED window
 	x := y := w := h := 0
@@ -282,6 +305,8 @@ while (!buttonsAreInitialized()) {
 activateEDWindow()
 
 readKeysConfig()
+readTimingConfig()
+
 
 ; Luminance = (0.2126 * R + 0.7152 * G + 0.0722 * B)
 requestMouseXY(btn, msg := "") {
@@ -305,13 +330,19 @@ requestMouseXY(btn, msg := "") {
 }
 
 initButtons(){
+	beepConfigure()
 	L("configuration started")
 	SetKeyDelay 1000, 100
 	activateEDWindow()
 	result := MsgBox("To initialize this script (wiping the old config),`n`n"
 		"open up a station's commodities market`n`n"
 		"then click OK`n`n`n"
-		"or . . . click CANCEL to abort", "Welcome to " A_ScriptName, "OKCancel Default2")
+		"or . . . click CANCEL to abort`n`n`n"
+		"(NOTE:  If you've modified your menu-navigation keys`n"
+		"    (wasd, space, mouse buttons), there are special`n"
+		"    instructions in the comments at the top of the script.`n"
+		"    Abort now, read them, come back when you're done)`n`n"
+		, "Welcome to " A_ScriptName, "OKCancel Default2")
 	if (result = "Cancel"){
 		return false
 	}
@@ -345,10 +376,9 @@ initButtons(){
 	SendEvent("{" k.right "}")
 	sellTab.cSNoFocus := PixelGetColor(sellTab.x, sellTab.y)
 	SendEvent("{" k.select "}")
-	sellTab.cSFocusDim := PixelGetColor(sellTab.x, sellTab.y)
+	sellTab.cSNoFocusDim := PixelGetColor(sellTab.x, sellTab.y)
 	sleep 1000
 	SendEvent("{" k.cancel "}")
-	buttonMsgBox(sellTab, "sellTab LATE`n")
 
 	initGui.Hide()
 	MsgBox("So far so good.  Now, click on a commodity`n"
@@ -380,7 +410,6 @@ initButtons(){
 	sellButton.cSFocus := PixelGetColor(sellButton.x, sellButton.y)
 	sleep 1000
 	SendEvent("{" k.cancel "}")
-	buttonMsgBox(sellButton, "sellButton LATE`n")
 	setTestMode(true)			;might not already be true, if this isn't the first time
 	writeButtonConfig(sellTab)
 	writeButtonConfig(sellButton)
@@ -398,22 +427,31 @@ initButtons(){
 		"To pause, press Pause.  To resume (aka un-pause):`n"
 		"- get onto the SELL COMMODITY screen`n"
 		"- press Pause.`n`n"
-		"Enjoy your 1-ton selling adventures")
+		"Hint: for speed & reliability, drop into the hangar.`n"
+		"    Solo mode may also help.`n`n"
+		"Enjoy your 1-ton selling adventures!")
 	return true
 }
 
 ; keep some statistics about each of the action steps, so we can see how long they take, how often they retry or fail, etc
-actionStats := Map()							; map of button name, color name, seconds => total duration, min, max, count attempts 1..N
-actionLast := Map()								; map of button name, color name, seconds => duration, last time we logged this action, failMsg, attempts
-actionIds := Array()							; the actions we've seen, in the order we first saw them
-prevAction := {id: "", tick: 0, attempts:0}		; the last action we logged, when (in msec since reboot), and how many times we've tried it
-logAction(btn, col, sec, failMsg:=""){
-	id := (btn ? btn.name : "") "-" col "-" sec, tick := A_TickCount
-	Ld("LogAction() id=" id " failMsg: " failMsg)
+actionStats := 0	; map of button name, color name, seconds => total duration, min, max, count attempts 1..N
+actionLast := 0		; map of button name, color name, seconds => duration, last time we logged this action, failMsg, attempts
+actionIds := 0		; the actions we've seen, in the order we first saw them
+prevAction := 0		; the last action we logged, when (in msec since reboot), how many times we've tried it, waits for pixelsearch, keys sent
+logActionInit() {
+	global actionStats := Map()
+	global actionLast := Map()
+	global actionIds := Array()
+	global prevAction := {id: "", tick: 0, attempts:0, pixelWaits:0, keySeq:""}
+}
+logAction(btn, col, sec, keySeq, failMsg:=""){									; we don't know how long an action took until the next one starts,
+	id := (btn ? btn.name : "") "-" col "-" sec, tick := A_TickCount			;	so actionStats[]{} gets populated with last action's data from prevAction{}
+	Ld('LogAction() ' Format("{:-28}", id) Format("{:-11} ", keySeq) failMsg)
 	if (prevAction.id) {
 		if !actionStats.Has(prevAction.id) {									; if this tuple hasn't been seen before, initialize it
-			actionStats[prevAction.id] := {duration:0, min:0, max:0, attempts:Array()}
-			actionStats[prevAction.id].attempts.Default := 0					; so we can increment elements that haven't been set yet
+			actionStats[prevAction.id] := {duration:0, min:0, max:0, pixelWaits:0, attempts:Array(), keySeq:prevAction.keySeq}
+			Loop timing.retries													; be ready to record how many of each retry rank is attempted
+				actionStats[prevAction.id].attempts.Push(0)
 			actionIds.Push(prevAction.id)										; add id to a list of ids, so we can iterate over it later
 		}
 		duration := tick - prevAction.tick
@@ -422,7 +460,6 @@ logAction(btn, col, sec, failMsg:=""){
 			duration := 0
 		}
 		stat := actionStats[prevAction.id]										; shorthand for the actionStats entry for this action
-		stat.attempts.Length := Max(stat.attempts.Length, prevAction.attempts)	; make sure attempts[] is big enough)
 		loop prevAction.attempts {												; bump those elements of attempts[] that we hit
 			stat.attempts[A_Index]++
 		}
@@ -431,36 +468,46 @@ logAction(btn, col, sec, failMsg:=""){
 			stat.min := ((stat.min = 0) ? duration : Min(stat.min, duration))
 			stat.max := Max(stat.max, duration)
 		}
-		actionLast[prevAction.id] := {duration:duration, time:prevAction.tick, failMsg:failMsg, attempts:prevAction.attempts}
+		(prevAction.attempts = 1) && (stat.pixelWaits += prevAction.pixelWaits)
+		actionLast[prevAction.id] := {duration:duration, time:prevAction.tick, failMsg:failMsg, attempts:prevAction.attempts, pixelWaits:prevAction.pixelWaits, keySeq:prevAction.keySeq}
 	}
-	prevAction.id := id, prevAction.tick := tick, prevAction.attempts := 1		; record the just-started action in prevAction
+	prevAction.id := id, prevAction.tick := tick, prevAction.attempts := 1, prevAction.pixelWaits := 0, prevAction.keySeq := keySeq		; record the just-started action in prevAction
+	if failMsg
+		EnvSet("SELL1_STATUS", failMsg)
 }
 logActionRetry(){
 	global prevAction
 	prevAction.attempts++
-	Lw("logActionRetry() id=" prevAction.id " attempts=" prevAction.attempts)
+	Lw("logActionRetry() id=" prevAction.id " attempts=" prevAction.attempts ' "' prevAction.keySeq '"')
 }
 logActionFinal(){
 	idlen := 0
+	totalRetries := 0
 	for id in actionIds
 		idlen := Max(idlen, StrLen(id))
-	L("summary statistics:")
-	for id in actionIds {
-		stat := actionStats[id]
-		retries := (stat.attempts.Length>1) ? stat.attempts[2] : 0		; we should be able to use the default value of attempts[2] (aka 0) directly, but it threw an error, so...
-		msg := "id=" Format("{:-" idLen+1 "}", id) "avg=" Format("{:i}", round(stat.duration / (stat.attempts[1] - retries))) .			; avg only counts successful first tries
-			" duration=" stat.duration " min=" stat.min " max=" stat.max " attempts=["
-		loop stat.attempts.Length {
-			msg .= (A_Index>1 ? ", " : "") . stat.attempts[A_Index]
-		}
-		msg .= "]"
-		L(msg)
-	}
 	L("last actions:")
 	for id in actionIds {
 		al := actionLast[id]
-		L("time=" al.time " id=" Format("{:-" idLen+1 "}", id) " duration=" al.duration " msg='" al.failMsg "' attempts=" al.attempts)
+		L(Format("id={:-27} duration={:-5} pixelWaits={:-4} attempts={:-2} keySeq={:-11} {}",
+			id, al.duration, al.pixelWaits, al.attempts, al.keySeq, al.failMsg))
 	}
+	L("summary statistics:")
+	for id in actionIds {
+		stat := actionStats[id]
+		firstTries := stat.attempts[1] - stat.attempts[2]					; avg only counts successful first tries
+		avg := firstTries ? round(stat.duration / firstTries) : 0			; ...which are not zero
+		arr := stat.attempts
+		while (arr.Length && !arr[-1])
+			arr.Pop()
+		attMsg := ""
+		loop stat.attempts.Length {
+			totalRetries += (A_Index>1 ? stat.attempts[A_Index] : 0)
+			attMsg .= (A_Index>1 ? ", " : "") . stat.attempts[A_Index]
+		}
+		L(Format("id={:-" idLen "} avg={:-4} duration={:-7} min={:-4} max={:-4} pxWaits={:-6} attempts={:-12} keySeq={}",
+			id, avg, stat.duration, stat.min, stat.max, stat.pixelWaits, "[" attMsg "]", stat.keySeq))
+	}
+	EnvSet("SELL1_RETRIES", totalRetries)
 }
 logActionPause(mode) {
 	static pauseTime := 0
@@ -480,6 +527,7 @@ mmssTime(t){			; time in milliseconds, returns a string in MMmSSs format, or SS.
 timekeeper(mode){							; not critical to operation, just a little monitoring
 	static startTime := 0
 	static pauseTime := 0
+	static count := 0
 	Ld("timekeeper() mode: " mode)
 	if (mode = "pause") {
 		pauseTime := A_TickCount
@@ -487,10 +535,13 @@ timekeeper(mode){							; not critical to operation, just a little monitoring
 		startTime += (A_TickCount - pauseTime)
 	} else if (mode = "final") {
 		GuiCtrlPaused.Text := mmssTime(A_TickCount - startTime)
+		L("total time: " GuiCtrlPaused.Text)
+		L("average time: " mmssTime((A_TickCount - startTime) / count))
 	} else if (!mode){
 		startTime := A_TickCount
 	} else {
-		GuiCtrlPaused.Text := mmssTime((A_TickCount - startTime) / mode)
+		count := integer(mode)
+		GuiCtrlPaused.Text := mmssTime((A_TickCount - startTime) / count)
 	}
 }
 
@@ -503,53 +554,66 @@ togglePause(){
 
 WaitForColorPS(x, y, c, msec){
   tmpx := 0, tmpy := 0
+  waitSize := 10
+  startTick := A_TickCount
   Loop {
-	if (PixelSearch(&tmpx, &tmpy, x, y, x, y, c, 5))
-	  return true
-	Sleep 50
-  } Until ((msec -= 50) <= 0)
+	if (PixelSearch(&tmpx, &tmpy, x, y, x, y, c, 5)) {
+		;if prevAction.pixelWaits &&
+		;	Ld("WaitForColorPS() waited " waitSize "ms " prevAction.pixelWaits "x")
+		return true
+	}
+	if (A_TickCount - startTick > msec)
+		break
+	Sleep(waitSize)
+	prevAction.pixelWaits++
+  }
   return false
 }
 
-; TODO: rename this, remove the S1
 ; button, color name, seconds.  col is a string so we can display it in the UI
-S1WaitForColor(btn, col, sec){
+WaitForColor(btn, col, sec){
   GuiCtrlWaitBtn.Text         := btn.name
   GuiCtrlWaitColor.Text       := col
   GuiCtrlWaitSec.Text         := sec
   result := WaitForColorPS(btn.x, btn.y, btn.%col%, sec * 1000)
   GuiCtrlSellTabColor.Text    := PixelGetColor(sellTab.x, sellTab.y)
   GuiCtrlSellButtonColor.Text := PixelGetColor(sellButton.x, sellButton.y)
-  sleep 50		; TODO remove this delay?
+  (timing.afterWFCPS) && Sleep(timing.afterWFCPS)
   return result
 }
 
-SendAndWaitForColor(msg, btn, col, sec, maxAttempts){
+SendAndWaitForColor(keySeq, btn, col, sec, maxAttempts){
   thisTry := 0
   static retries := 0
   static oldBtn := ""
   static oldCol := ""
-  logAction(btn, col, sec)
+  logAction(btn, col, sec, keySeq)
   loop {
 	GuiCtrlTry.Text := ++thisTry
 	if (thisTry>1) {
 		GuiCtrlRetries.Text := ++retries
 		logActionRetry()
 	}
-	if (msg)
-	  SendEvent msg
-	if (S1WaitForColor(btn, col, (sec * thisTry * timing.retryMult))) {		; rather than delay X times (n=1..X) for s seconds, delay X times for n*s seconds
+	if (WinExist("A") != edWin.hwnd) {															; if the ED window isn't on top, we can't do anything
+		Le("Looks like you want control of your computer back, so I'm stopping")
+		MsgBox("Looks like you want control of your computer back, so I'm stopping.")			; TODO: optionally recover and continue from here
+		logAction(btn, col, sec, keySeq, "WRONG_WINDOW")
+		return false
+	}
+	if (keySeq)
+	  SendEvent(keySeq)
+	if (WaitForColor(btn, col, (sec * thisTry * timing.retryMult))) {		; rather than delay X times (n=1..X) for s seconds, delay X times for n*s seconds
 	  oldBtn := btn
 	  oldCol := col
 	  return true
 	} 
 	; if the old (==previous) pixel check fails, we can't try again
-	if(!msg || !oldBtn || !oldCol || !S1WaitForColor(oldBtn, oldCol, 0)) {
-		logAction(btn, col, sec, "I_GOT_CONFUSED")
+	if(!keySeq || !oldBtn || !oldCol || !WaitForColor(oldBtn, oldCol, 0)) {
+		logAction(btn, col, sec, keySeq, "I_GOT_CONFUSED")
 		return false
 	}
   } until (thisTry >= maxAttempts)
-  logAction(btn, col, sec, "TOO_MANY_RETRIES")
+  logAction(btn, col, sec, keySeq, "TOO_MANY_RETRIES")
   return false
 }
 
@@ -559,52 +623,67 @@ VerifyStartingPosition(){
 	  "Delete " config.file " and restart the script.", "How'd you get here?")
 	return false
   }
+  SetKeyDelay 4*timing.keyDelay, 4*timing.keyDuration				; be a bit slow, it's just once at the beginning (or after a pause)
   MouseMove(edWin.width/2, edWin.height-30)							; put the mouse on the bottom of the ED window, but out of the way
-  if (!SendAndWaitForColor("", sellTab, "cSFocusDim", 1, 0))		; gotta start on the "SELL COMMODITY screen" selling your item
+  if (!WaitForColor(sellTab, "cSNoFocusDim", 0))					; gotta start on the "SELL COMMODITY screen" selling your item
 	return false
   ; move the cursor to the sell button, then add 1 to the quantity, then move the cursor back to the sell button
   SendEvent("{" k.down "}{" k.down "}{" k.left "}{" k.left "}{" k.down "}{" k.up "}{" k.up "}{" k.right "}{" k.down "}")
   return true
 }
 
-smallSales(SellBy){		; SellBy is the number of tons to sell at a time.  TODO needs a better name
+smallSalesOnExit(){
+	L('smallSalesOnExit() config.notifyProgram="' config.notifyProgram '"')
+	if (config.notifyProgram)
+		Run(config.notifyProgram)
+	Ld("smallSalesOnExit() config.optionExitGameAtEnd=" config.optionExitGameAtEnd " GuiCtrlExitGameAtEnd.Value=" GuiCtrlExitGameAtEnd.Value)
+	if (GuiCtrlExitGameAtEnd.Value){
+		SetKeyDelay 2000, 200
+		SendEvent("{" k.escape "}{" k.up "}{" k.select "}{" k.right "}{" k.select "}")		;exits the game commodities or sell screen
+		ExitApp()				; no point in sticking around -- after the game exits our hwnd is invalid
+	}
+}
+
+smallSales(saleSize){		; saleSize is the number of tons to sell at a time.
+  L("smallSales() starting, saleSize=" saleSize)
   sold := 0
   GuiCtrlRetries := 0
   global PauseOperation
-  SetKeyDelay timing.interKey, timing.keyDuration
+  EnvSet("SELL1_SALESIZE", saleSize)
+  logActionInit()
   if !VerifyStartingPosition()
-	return beepExit		; should be beepExit(), yes?
-  sellCountStr := strRepeat("{" k.right "}", SellBy)
+	return beepFailure()
+  beepStart()
+  sellCountStr := strRepeat("{" k.right "}", saleSize)
   while true {
+    SetKeyDelay timing.keyDelay, timing.keyDuration
 	sellKey := (testMode) ? ("{" k.cancel "}") : ("{" k.select "}")								; testMode is true for testing, false for actually selling
 	timekeeper(sold)
-	if (WinExist("A") != edWin.hwnd) {															; if the ED window isn't on top, we can't do anything
-		MsgBox("Looks like you want control of your computer back, so I'm stopping.")			; this doesn't seem to work, but the test is kicking us out, so I'm calling it a win
-		break
-	}
+	EnvSet("SELL1_SOLD", sold)
 	; to differentiate them for debugging, each button/color/seconds tuple should be unique.  it's displayed on the 2nd-from-bottom line in the gui
-	if (S1WaitForColor(sellButton, "cSFocusZero", 0)) {											; nothing left, we're done!
+	if (WaitForColor(sellButton, "cSFocusZero", 0)) {											; nothing left, we're done!
 	  timekeeper("final")
-	  logAction("", "", 0, "successful run")													; write the final action to the log
+	  logAction("", "", 0, "", "successful_finish")												; write the final action to the log
 	  logActionFinal()																			; write the summary statistics to the log
-	  return beepDone()
+	  smallSalesOnExit()
+	  return beepSuccess()
 	}
-	if (!SendAndWaitForColor("", sellButton, "cSFocus", 4, 0))									; verify we're on the sell button, and set the "previous" button/color for the next SendAndWaitForColor
+	if (!SendAndWaitForColor("", sellButton, "cSFocus", 2, 0))									; verify we're on the sell button, and set the "previous" button/color for the next SendAndWaitForColor
 	  break
-	if (!SendAndWaitForColor("{" k.up " down}", sellButton, "cSNoFocus", 4, timing.retries))	; cursor up, leave the key pressed  ; technique mentioned in LYR discord.  saves 0.46 seconds per sale at 720t, or 2m45s for a whole load
+	if (!SendAndWaitForColor("{" k.up " Down}", sellButton, "cSNoFocus", 2, timing.retries))	; cursor up, leave the key pressed  ; technique mentioned in LYR discord.  saves 0.46 seconds per sale at 720t, or 2m45s for a whole load
 	  break
-	if (!SendAndWaitForColor("{" k.left " down}", sellButton, "cSNoFocusZero", 10, timing.retries))		; cursor left, leave the key pressed, alllll the way to zero
+	if (!SendAndWaitForColor("{" k.left " Down}", sellButton, "cSNoFocusZero", 6, timing.retries))		; cursor left, leave the key pressed, alllll the way to zero
 	  break
-	SendEvent("{" k.left " up}{" k.up " up}")													; release left & up.  we can't use SendAndWaitForColor here, because nothing changes color
+	SendEvent("{" k.left " Up}{" k.up " Up}")													; release left & up.  we can't use SendAndWaitForColor here, because nothing changes color
 	sleep timing.extraSellWait					  												; gets its own sleep, because I was having trouble with the next key being seen
-	if (!SendAndWaitForColor(sellCountStr, sellButton, "cSNoFocus", 5, timing.retries))			; cursor right for the number we want to sell; needs a different timeout from the previous SellButton/colorSelectedNoFocus
+	if (!SendAndWaitForColor(sellCountStr, sellButton, "cSNoFocus", 3, timing.retries))			; cursor right for the number we want to sell; needs a different timeout from the previous SellButton/colorSelectedNoFocus
 	  break
-	if (!SendAndWaitForColor("{" k.down "}", sellButton, "cSFocus", 5, timing.retries))			; down to the sell button; needs a different timeout from the previous SellButton/colorSelectedFocus
+	if (!SendAndWaitForColor("{" k.down "}", sellButton, "cSFocus", 3, timing.retries))			; down to the sell button; needs a different timeout from the previous SellButton/colorSelectedFocus
 	  break						
-	GuiCtrlSold.Text := (sold += SellBy)
-	if (!SendAndWaitForColor(sellKey, sellTab, "cSNoFocus", 4, timing.retries))					; sell and wait for the sell window to go away, revealing sellTab without the dimming
+	GuiCtrlSold.Text := (sold += saleSize)
+	if (!SendAndWaitForColor(sellKey, sellTab, "cSNoFocus", 10, timing.riskyRetryA))			; sell and wait for the sell window to go away, revealing sellTab without the dimming.  only try twice; don't sell the whole hold if there's a server burp.  that's why the timeout is so long
 	  break
-	if (!SendAndWaitForColor("{" k.select "}", sellTab, "cSFocusDim", 4, timing.retries))		; select the commodity from the list
+	if (!SendAndWaitForColor("{" k.select "}", sellTab, "cSNoFocusDim", timing.riskyRetryB, timing.retries))		; again select the commodity from the list
 	  break
 	if PauseOperation {
 	  timekeeper("pause"), logActionPause("pause"), GuiCtrlPaused.Text := "Paused"
@@ -612,11 +691,12 @@ smallSales(SellBy){		; SellBy is the number of tons to sell at a time.  TODO nee
 		sleep 1000
 	  }
 	  if !VerifyStartingPosition()
-		return beepExit()
+		break
 	  timekeeper("resume"), logActionPause("resume"), GuiCtrlPaused.Text := ""
 	}
   }
   logActionFinal()		; write the summary statistics to the log.  something in SendAndWaitForColor() failed, so logAction() already got called with a failure message
-  beepExit()
+  smallSalesOnExit()
+  beepFailure()
 }
 
