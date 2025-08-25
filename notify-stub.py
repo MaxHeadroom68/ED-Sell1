@@ -1,3 +1,5 @@
+
+# A stub to verify that it gets called properly
 import sys
 import os
 import datetime

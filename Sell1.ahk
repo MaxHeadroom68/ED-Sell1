@@ -191,7 +191,7 @@ readTimingConfig() {
 ;update config.ini, convert 0.2.0 to 0.3.0
 if (config.iniVersion="") {
 	; get cSFocusDim (the wrong name for the color, which we used before 0.3.0), delete it from config.ini, save it back as cSNoFocusDim so it's there when we readButtonConfig(sellTab)
-	if (color := IniRead(config.file, "sellTab", "cSFocusDim")) {
+	if (color := IniRead(config.file, "sellTab", "cSFocusDim", "")) {
 		IniDelete(config.file, "sellTab", "cSFocusDim")
 		IniWrite(color, config.file, "sellTab", "cSNoFocusDim")
 	}
