@@ -36,7 +36,6 @@ Pause::togglePause()	; make sure to be on the SELL COMMODITY screen when you un-
 
 k := {up: "w", down: "s", left: "a", right: "d", select: "Space", escape:"Escape", click: "LButton", cancel: "RButton"}	; see readKeysConfig() below to customize
 
-;TODO: only try the second space (selecting the commodity) once.  put a configvar on the retry for this and pressing SELL
 ;TODO: rather than retry either {Space} action, wait a bit and check if we've got control of the UI, or if things are hung entirely
 ;TODO: optionally drop a .csv in config.logdir with everything from logAction() and prevAction{}
 ;TODO: make the input keys (Pause, ^!F8, etc) configurable in config.ini, so you can change them to something else if you like.  How to do that without sacrificing readability?
@@ -264,7 +263,7 @@ GuiCtrlRetries   := G.Add("Text", "X+0 ys", "0000")
 G.Add("Link", "X9 Y+3 Section",  '<a href="' config.dir    '">Config</a>')
 G.Add("Link", "X+7 ys",         '<a href="' config.logdir '">Log</a>')
 G.Add("Link", "X+7 ys",         '<a href="' config.appdir '">Script</a>')
-G.Add("Link", "X+7 ys",         '<a href="https://github.com/MaxHeadroom68/ED-Sell1/blob/dev/README.md">Help</a>')
+G.Add("Link", "X+7 ys",         '<a href="https://github.com/MaxHeadroom68/ED-Sell1/blob/main/README.md">Help</a>')
 
 GuiCtrlWaitBtn   := G.Add("Text", "X9 Y+3 Section", "Wait for")
 GuiCtrlWaitColor := G.Add("Text", "X+3 ys", "Wait for color")
