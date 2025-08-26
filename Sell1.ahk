@@ -91,7 +91,7 @@ initConfig() {
 	config.logFileOpenMode := readConfigVar("logFileOpenMode", config.logFileOpenMode)
 	if FileExist(config.logFile) && DateDiff(A_Now, FileGetTime(config.logFile, "M"), "Days") > 2
 		openMode := "w"  ; If the log file is older than 2 days, overwrite it ("w"), even if openMode is set to append ("a")
-	config.logHandle := FileOpen(config.logFile, openMode)  ; Open log file for appending
+	config.logHandle := FileOpen(config.logFile, config.logFileOpenMode)  ; Open log file for appending
 	config.minLogLevel			:= readConfigVar("minLogLevel", config.minLogLevel)
 	config.saleSize2ndKey		:= readConfigVar("saleSize2ndKey", config.saleSize2ndKey)
 	config.optionExitGameAtEnd	:= readConfigVar("optionExitGameAtEnd", config.optionExitGameAtEnd)
