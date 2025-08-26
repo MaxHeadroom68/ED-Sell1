@@ -1,5 +1,4 @@
-Elite Dangerous helper script in [AutoHotKey V2](https://www.autohotkey.com/docs/v2/howto/Install.htm)
-to sell one ton of goods at a time, for reasons.
+script in [AutoHotKey V2](https://www.autohotkey.com/docs/v2/howto/Install.htm)
 
 ## Features
 
