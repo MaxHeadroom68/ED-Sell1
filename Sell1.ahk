@@ -31,6 +31,7 @@
 ^!F9:: Send("{" k.up " up}{" k.down " up}{" k.left " up}{" k.right " up}{" k.select " up}"), Lw("Reload"), SoundBeep(523, 150), Reload()  ; Reload the script  [shamelessly stolen from OB]
 ^!F10::initButtons()	; ask where the buttons are, figure out the colors
 ^!F12::setTestMode(!testMode)	; toggle test mode
+^!+F12::setFinishBatch() 		; we're done now.  helpful for testing, or if we just want to be finished in the middle of a real load
 Pause::togglePause()	; make sure to be on the SELL COMMODITY screen when you un-pause
 #HotIf 
 
@@ -54,6 +55,7 @@ debugMode := false			; used for random things during development
 testMode := true			; set to true when you're getting set up, so we hit RMouse to cancel, rather than spacebar to actually sell the goods
 PauseOperation := false
 edWin := {x: 0, y: 0, width: 0, height: 0, hwnd: 0}											; Elite Dangerous window
+finishBatch := false		; when true, we'll behave as if we're finished with this load
 
 if (edWin.hwnd := WinExist("ahk_exe EliteDangerous64.exe")){
 	WinActivate			; give ED focus, even though our window is always on top
@@ -552,6 +554,12 @@ togglePause(){
   PauseOperation ? (GuiCtrlPaused.Text := "Pausing") : ""
   L("togglePause() PauseOperation: " PauseOperation)
 }
+setFinishBatch(){
+	global finishBatch
+	finishBatch := true
+	L("finishBatch=" finishBatch)
+	beepStart()
+}
 
 WaitForColorPS(x, y, c, msec){
   tmpx := 0, tmpy := 0
@@ -646,6 +654,7 @@ smallSalesOnExit(){
 }
 
 smallSales(saleSize){		; saleSize is the number of tons to sell at a time.
+  global finishBatch
   L("smallSales() starting, saleSize=" saleSize)
   sold := 0
   GuiCtrlRetries := 0
@@ -662,7 +671,9 @@ smallSales(saleSize){		; saleSize is the number of tons to sell at a time.
 	timekeeper(sold)
 	EnvSet("SELL1_SOLD", sold)
 	; to differentiate them for debugging, each button/color/seconds tuple should be unique.  it's displayed on the 2nd-from-bottom line in the gui
-	if (WaitForColor(sellButton, "cSFocusZero", 0)) {											; nothing left, we're done!
+	Ld("smallSales() main loop, finishBatch=" finishBatch)
+	if (WaitForColor(sellButton, "cSFocusZero", 0) || finishBatch) {							; nothing left, we're done!
+	  finishBatch := false
 	  timekeeper("final")
 	  logAction("", "", 0, "", "successful_finish")												; write the final action to the log
 	  logActionFinal()																			; write the summary statistics to the log
