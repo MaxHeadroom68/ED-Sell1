@@ -684,8 +684,41 @@ smallSales(saleSize){		; saleSize is the number of tons to sell at a time.
 	GuiCtrlSold.Text := (sold += saleSize)
 	if (!SendAndWaitForColor(sellKey, sellTab, "cSNoFocus", 10, timing.riskyRetryA))			; sell and wait for the sell window to go away, revealing sellTab without the dimming.  only try twice; don't sell the whole hold if there's a server burp.  that's why the timeout is so long
 	  break
-	if (!SendAndWaitForColor("{" k.select "}", sellTab, "cSNoFocusDim", timing.riskyRetryB, timing.retries))		; again select the commodity from the list
-	  break
+	;if (!SendAndWaitForColor("{" k.select "}", sellTab, "cSNoFocusDim", timing.riskyRetryB, timing.retries))		; again select the commodity from the list
+	;  break
+
+	; we can't retry by just smashing {Space} a few times -- a bad lag spike means one gets accepted, then the second clicks SELL with the entire inventory selected
+	for last_attempt in [0,0,1] {		
+		if SendAndWaitForColor("{" k.select "}", sellTab, "cSNoFocusDim", timing.riskyRetryB, timing.retries)		; if it works, we move on
+			break
+		if last_attempt																								; if that was our last shot, we bail
+			break 2
+			
+		; so either the game is lagging badly or hung or something, in which case this will all fail and we're done
+		; or the previous SendAndWaitForColor() failed because a keypress wasn't seen by the game,
+		;	meaning we still have control and just need to prove it to ourselves, without any chance of accidentally selling a whole load of the player's commodity
+		;	and once that's done, we put the cursor back where it was so we can try SendAndWaitForColor() again
+		if !verify_where_we_are()																					; try to regain known-good situation
+			break 2
+
+	
+	}
+	
+
+
+
+
+
+
+		; SetKeyDelay to 4x normal
+		; verify sellTab is not focused, otherwise break
+		; try to move left, verify sellTab is focused, otherwise break
+		; try to move right, verify sellTab is not focused, otherwise break
+
+
+
+
+}
 	if PauseOperation {
 	  timekeeper("pause"), logActionPause("pause"), GuiCtrlPaused.Text := "Paused"
 	  while PauseOperation {
