@@ -1,5 +1,5 @@
 
-# A stub to verify that it gets called properly
+# A stub, to demonstrate that Sell1.ahk calls it properly
 import sys
 import os
 import datetime

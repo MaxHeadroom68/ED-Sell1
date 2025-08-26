@@ -60,7 +60,7 @@ viewable with [DebugView](https://download.sysinternals.com/files/DebugView.zip)
 
 ## Configuration
 Config file is %AppData%\Sell1\config.ini, there's a link to it on the GUI.
-Edit it config.ini, save it, then reload the script with Ctl-Alt-F9.
+Edit it, save it, then reload the script with Ctl-Alt-F9.
 Below are some config variables with their default values.
 
 (warning: just use the "key=value" parts.  config.ini doesn't support comments, so don't cut'n'paste any line with comments on it.)

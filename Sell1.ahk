@@ -59,7 +59,6 @@ if (edWin.hwnd := WinExist("ahk_exe EliteDangerous64.exe")){
 	WinActivate			; give ED focus, even though our window is always on top
 	WinGetPos(&x, &y, &w, &h)
 	edWin.x := x, edWin.y := y, edWin.width := w, edWin.height := h
-	beepHello()
 } else {
 	beepFailure()
 	MsgBox("Elite Dangerous not running, please start the game and try again.")
@@ -72,7 +71,8 @@ activateEDWindow() {
 }
 
 ; Configuration - store settings in %APPDATA%\SCRIPTNAME\config.ini
-config := {fileName:"config.ini", defaultSection:"Settings", minLogLevel:1, saleSize2ndKey:2, optionExitGameAtEnd:0, notifyProgram:"", iniVersion:""}
+config := {fileName:"config.ini", defaultSection:"Settings", minLogLevel:0, saleSize2ndKey:2, logFileOpenMode:"w",
+	optionExitGameAtEnd:0, notifyProgram:"", iniVersion:""}
 initConfig() {
 	config.appDir := A_ScriptDir
 	config.appName := RegExReplace(A_ScriptName, "\.[^.]*$")  ; Remove extension
@@ -88,9 +88,9 @@ initConfig() {
 	if !DirExist(config.logdir)
 		DirCreate(config.logdir)
 	config.logFile := config.logdir "\app_" FormatTime(A_Now, "ddd") ".log"  ; Log file named with the current weekday
-	openMode := readConfigVar("logfileopenmode", "a")		; can use "w" if you want to start with a fresh log file each time
+	config.logFileOpenMode := readConfigVar("logFileOpenMode", config.logFileOpenMode)
 	if FileExist(config.logFile) && DateDiff(A_Now, FileGetTime(config.logFile, "M"), "Days") > 2
-		openMode := "w"  ; If the log file is older than 2 days, overwrite it
+		openMode := "w"  ; If the log file is older than 2 days, overwrite it ("w"), even if openMode is set to append ("a")
 	config.logHandle := FileOpen(config.logFile, openMode)  ; Open log file for appending
 	config.minLogLevel			:= readConfigVar("minLogLevel", config.minLogLevel)
 	config.saleSize2ndKey		:= readConfigVar("saleSize2ndKey", config.saleSize2ndKey)
@@ -306,6 +306,7 @@ activateEDWindow()
 
 readKeysConfig()
 readTimingConfig()
+beepHello()
 
 
 ; Luminance = (0.2126 * R + 0.7152 * G + 0.0722 * B)
