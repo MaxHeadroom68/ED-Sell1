@@ -672,14 +672,26 @@ smallSales(saleSize){		; saleSize is the number of tons to sell at a time.
 	EnvSet("SELL1_SOLD", sold)
 	; to differentiate them for debugging, each button/color/seconds tuple should be unique.  it's displayed on the 2nd-from-bottom line in the gui
 	Ld("smallSales() main loop, finishBatch=" finishBatch)
-	if (WaitForColor(sellButton, "cSFocusZero", 0) || finishBatch) {							; nothing left, we're done!
-	  finishBatch := false
-	  timekeeper("final")
-	  logAction("", "", 0, "", "successful_finish")												; write the final action to the log
-	  logActionFinal()																			; write the summary statistics to the log
-	  smallSalesOnExit()
-	  return beepSuccess()
+
+	; if the sell commodity screen will occasionally lie and say we have 0t of inventory, we may have to double-check when we finish, by backing out and going back in, to see if it repopulates
+	for try_again in [1, 0] {
+		if (WaitForColor(sellButton, "cSFocusZero", 0) || finishBatch) {						; nothing left, we're done! (probably.  we should double-check first, just to be safe)
+			if !try_again {
+			    finishBatch := false
+				logAction("", "", 0, "", "successful_finish")									; write the final action to the log
+				logActionFinal()																; write the summary statistics to the log
+			    timekeeper("final")
+				smallSalesOnExit()
+				return beepSuccess()
+			}
+			if !SendAndWaitForColor("{" k.cancel "}", sellTab, "cSNoFocus", 4, 1)				; cancel out of the SELL COMMODITY screen
+				break 2
+			if !SendAndWaitForColor("{" k.select "}", sellTab, "cSNoFocusDim", 3, 1)
+				break 2
+		} else
+			break																				; if SELL isn't saying empty, let's keep going
 	}
+
 	if (!SendAndWaitForColor("", sellButton, "cSFocus", 2, 0))									; verify we're on the sell button, and set the "previous" button/color for the next SendAndWaitForColor
 	  break
 	if (!SendAndWaitForColor("{" k.up " Down}", sellButton, "cSNoFocus", 2, timing.retries))	; cursor up, leave the key pressed  ; technique mentioned in LYR discord.  saves 0.46 seconds per sale at 720t, or 2m45s for a whole load
@@ -693,10 +705,51 @@ smallSales(saleSize){		; saleSize is the number of tons to sell at a time.
 	if (!SendAndWaitForColor("{" k.down "}", sellButton, "cSFocus", 3, timing.retries))			; down to the sell button; needs a different timeout from the previous SellButton/colorSelectedFocus
 	  break						
 	GuiCtrlSold.Text := (sold += saleSize)
-	if (!SendAndWaitForColor(sellKey, sellTab, "cSNoFocus", 10, timing.riskyRetryA))			; sell and wait for the sell window to go away, revealing sellTab without the dimming.  only try twice; don't sell the whole hold if there's a server burp.  that's why the timeout is so long
-	  break
-	if (!SendAndWaitForColor("{" k.select "}", sellTab, "cSNoFocusDim", timing.riskyRetryB, timing.retries))		; again select the commodity from the list
-	  break
+
+
+	for try_again in [1,1,1,1,0] {																; (see the next for loop for rationale)
+		if SendAndWaitForColor(sellKey, sellTab, "cSNoFocus", 10, 1) {							; sell and wait for the sell window to go away, revealing sellTab without the dimming.
+			SetKeyDelay timing.keyDelay, timing.keyDuration	
+			break
+		}
+		if !try_again
+			break 2
+		SetKeyDelay 4*timing.keyDelay, 4*timing.keyDuration
+		Lw("smallSales() SELL timed out; tentatively checking if we're still driving")
+		if !SendAndWaitForColor("", sellButton, "cSFocus", 4, 1)
+			break 2
+		if !SendAndWaitForColor("{" k.up "}", sellButton, "cSNoFocus", 4, timing.retries)
+			break 2
+		if !SendAndWaitForColor("{" k.down "}", sellButton, "cSFocus", 5, timing.retries)
+			break 2
+	}
+
+	; select the commodity again from the list, to get to the SELL COMMODITY screen
+	; we can't retry by just smashing {Space} a few times -- a bad lag spike means one gets accepted, then the second clicks SELL with the entire inventory selected
+	for try_again in [1,1,1,1,0] {		; I *could* come up with some code to have this match timing.retries, but would that really improve anyone's life, or the clarity of this loop?
+		if SendAndWaitForColor("{" k.select "}", sellTab, "cSNoFocusDim", 5, 1) {									; if it works, yay!  we move on by exiting the for loop
+			SetKeyDelay timing.keyDelay, timing.keyDuration															; we can stop being so paranoid
+			break
+		}
+		if !try_again																								; if that was our last shot, we bail
+			break 2
+		SetKeyDelay 4*timing.keyDelay, 4*timing.keyDuration															; slow & steady
+		Lw("smallSales() selecting commodity timed out; tentatively checking if we're still in control")
+
+		; so either this step's SendAndWaitForColor() failed because the game is lagging badly or hung or something,
+		;	and pressing {Space} again would either get lost or might cause us to sell the whole load
+		;	in which case this will all fail and we're done
+		; or this step's SendAndWaitForColor() failed because a keypress wasn't seen by the game,
+		;	meaning we still have control and just need to prove it to ourselves, without any chance of accidentally selling a whole load of the player's commodity
+		;	and once that's done, we put the cursor back where it belongs so we can try this step's SendAndWaitForColor() again
+		; so we'll verify where we're at, then move the cursor left and right. if we ever fail to get the results we expect?  that means we're not in control, so we bail
+		if !SendAndWaitForColor("", sellTab, "cSNoFocus", 2, 0)														; check the sell tab is selected but doesn't have focus
+			break 2
+		if !SendAndWaitForColor("{" k.left "}", sellTab, "cSFocus", 2, timing.retries)								; move left, check sell tab has focus
+			break 2
+		if !SendAndWaitForColor("{" k.right "}", sellTab, "cSNoFocus", 3, 1)										; move right (but only try once), check sell tab doesn't have focus
+			break 2
+	}
 	if PauseOperation {
 	  timekeeper("pause"), logActionPause("pause"), GuiCtrlPaused.Text := "Paused"
 	  while PauseOperation {
