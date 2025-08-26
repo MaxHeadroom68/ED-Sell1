@@ -91,7 +91,7 @@ initConfig() {
 	config.logFileOpenMode := readConfigVar("logFileOpenMode", config.logFileOpenMode)
 	if FileExist(config.logFile) && DateDiff(A_Now, FileGetTime(config.logFile, "M"), "Days") > 2
 		openMode := "w"  ; If the log file is older than 2 days, overwrite it ("w"), even if openMode is set to append ("a")
-	config.logHandle := FileOpen(config.logFile, openMode)  ; Open log file for appending
+	config.logHandle := FileOpen(config.logFile, config.logFileOpenMode)  ; Open log file for appending
 	config.minLogLevel			:= readConfigVar("minLogLevel", config.minLogLevel)
 	config.saleSize2ndKey		:= readConfigVar("saleSize2ndKey", config.saleSize2ndKey)
 	config.optionExitGameAtEnd	:= readConfigVar("optionExitGameAtEnd", config.optionExitGameAtEnd)
@@ -684,8 +684,6 @@ smallSales(saleSize){		; saleSize is the number of tons to sell at a time.
 	GuiCtrlSold.Text := (sold += saleSize)
 	if (!SendAndWaitForColor(sellKey, sellTab, "cSNoFocus", 10, timing.riskyRetryA))			; sell and wait for the sell window to go away, revealing sellTab without the dimming.  only try twice; don't sell the whole hold if there's a server burp.  that's why the timeout is so long
 	  break
-	;if (!SendAndWaitForColor("{" k.select "}", sellTab, "cSNoFocusDim", timing.riskyRetryB, timing.retries))		; again select the commodity from the list
-	;  break
 
 	; select the commodity again from the list, to get to the SELL COMMODITY screen
 	; we can't retry by just smashing {Space} a few times -- a bad lag spike means one gets accepted, then the second clicks SELL with the entire inventory selected
