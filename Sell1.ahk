@@ -37,7 +37,7 @@ Pause::togglePause()	; make sure to be on the SELL COMMODITY screen when you un-
 
 k := {up: "w", down: "s", left: "a", right: "d", select: "Space", escape:"Escape", click: "LButton", cancel: "RButton"}	; see readKeysConfig() below to customize
 
-;TODO: rather than retry either {Space} action, wait a bit and check if we've got control of the UI, or if things are hung entirely
+;TODO: gracefully handle end of batch when there are no more commodities listed
 ;TODO: optionally drop a .csv in config.logdir with everything from logAction() and prevAction{}
 ;TODO: make the input keys (Pause, ^!F8, etc) configurable in config.ini, so you can change them to something else if you like.  How to do that without sacrificing readability?
 ;TODO: figure out what's up with the reported cursor xy not matching the window
@@ -51,7 +51,6 @@ beepFailure := () => (SoundBeep(294,400), Sleep(150), SoundBeep(277,500), Sleep(
 Lx := (msg) => OutputDebug(A_ScriptName " " msg)				; log truly heinous errors to the console.  View with DebugView from MS
 Lx("uhhh, everything's under control, situation normal")		; script starting up.  (classical reference)
 
-debugMode := false			; used for random things during development
 testMode := true			; set to true when you're getting set up, so we hit RMouse to cancel, rather than spacebar to actually sell the goods
 PauseOperation := false
 edWin := {x: 0, y: 0, width: 0, height: 0, hwnd: 0}											; Elite Dangerous window
@@ -73,8 +72,10 @@ activateEDWindow() {
 }
 
 ; Configuration - store settings in %APPDATA%\SCRIPTNAME\config.ini
-config := {fileName:"config.ini", defaultSection:"Settings", minLogLevel:0, saleSize2ndKey:2, logFileOpenMode:"w",
-	optionExitGameAtEnd:0, notifyProgram:"", iniVersion:""}
+config := {fileName:"config.ini", defaultSection:"Settings",
+	logFileOpenMode:"w", minLogLevel:0, saleSize2ndKey:2, maxTonsToSell:0, optionExitGameAtEnd:0, notifyProgram:"", debugMode:0, version:"",					; there's probably some cool reflective way to DRY, but this works for now, and is clear
+	configVars2: ["logFileOpenMode", "minLogLevel", "saleSize2ndKey", "maxTonsToSell", "optionExitGameAtEnd", "notifyProgram", "debugMode", "version"]		; set now, logged after logging has started
+}
 initConfig() {
 	config.appDir := A_ScriptDir
 	config.appName := RegExReplace(A_ScriptName, "\.[^.]*$")  ; Remove extension
@@ -90,15 +91,11 @@ initConfig() {
 	if !DirExist(config.logdir)
 		DirCreate(config.logdir)
 	config.logFile := config.logdir "\app_" FormatTime(A_Now, "ddd") ".log"  ; Log file named with the current weekday
-	config.logFileOpenMode := readConfigVar("logFileOpenMode", config.logFileOpenMode)
+	for keyName in config.configVars2																	
+		config.%keyName% := readConfigVar(keyName, config.%keyName%)	
 	if FileExist(config.logFile) && DateDiff(A_Now, FileGetTime(config.logFile, "M"), "Days") > 2
 		openMode := "w"  ; If the log file is older than 2 days, overwrite it ("w"), even if openMode is set to append ("a")
-	config.logHandle := FileOpen(config.logFile, config.logFileOpenMode)  ; Open log file for appending
-	config.minLogLevel			:= readConfigVar("minLogLevel", config.minLogLevel)
-	config.saleSize2ndKey		:= readConfigVar("saleSize2ndKey", config.saleSize2ndKey)
-	config.optionExitGameAtEnd	:= readConfigVar("optionExitGameAtEnd", config.optionExitGameAtEnd)
-	config.notifyProgram		:= readConfigVar("notifyProgram", config.notifyProgram)
-	config.iniVersion := readConfigVar("version", config.iniVersion)
+	config.logHandle := FileOpen(config.logFile, config.logFileOpenMode)
 }
 initConfig()
 
@@ -117,10 +114,17 @@ LogMsg(level, message) {
     }
 }
 LogMsg("info", "Script started: " A_ScriptName)
+Lx("Logging to " config.logFile)
 Ld := (msg) => LogMsg("debug", msg)
 L  := (msg) => LogMsg("info", msg)
 Lw := (msg) => LogMsg("warn", msg)
 Le := (msg) => LogMsg("error", msg)
+{													; spiritually part of initConfig()
+	msg := "initConfig() testMode=" testmode
+	for keyName in config.configVars2
+		msg .= " " keyName "=" config.%keyName%
+	L(msg)
+}
 
 readConfigVar(key, fallback := "") {
 	return IniRead(config.file, config.defaultSection, key, fallback)
@@ -169,8 +173,8 @@ readKeysConfig() {
 	L(msg)
 }
 
-;timing :=	{keyDelay: 125, keyDuration: 75, extraSellWait: 50, afterWFCPS:50, retryMult: 1, retries: 4, riskyRetryA:2, riskyRetryB:1}		; conservative values, used in v0.2.0
-timing :=	{keyDelay:  20, keyDuration: 50, extraSellWait:  0, afterWFCPS:0,  retryMult: 1, retries: 5, riskyRetryA:2, riskyRetryB:1}		; aggressive values, used in v0.3.0
+;timing :=	{keyDelay: 125, keyDuration: 75, extraSellWait: 50, afterWFCPS:50, retryMult: 1, retries: 4}		; conservative values, used in v0.2.0
+timing :=	{keyDelay:  20, keyDuration: 50, extraSellWait:  0, afterWFCPS:0,  retryMult: 1, retries: 5}		; aggressive values, used in v0.3.0
 ; in %APPDATA%\Sell1\config.ini, create a [Timing] section, then you can set:
 ; keyDelay			time between key presses						(8x / loop)
 ; keyDuration		how long to hold down each key					(8x / loop)
@@ -178,12 +182,10 @@ timing :=	{keyDelay:  20, keyDuration: 50, extraSellWait:  0, afterWFCPS:0,  ret
 ; afterWFCPS		wait after waitForColorPixelSearch()			(9x / loop)
 ; retryMult			multiply the hard-coded delay between retries by this factor
 ; retries			number of retries to do before giving up
-; riskyRetryA		number of times to try the SELL button			(3 or more risks selling your inventory if the client lags)
-; riskyRetryB		number of times to try selecting the commodity	(2 or more risks selling your inventory if the client lags)
 readTimingConfig() {
 	global timing
 	msg := "readTimingConfig() "
-	for keyName in ["keyDelay", "keyDuration", "extraSellWait", "afterWFCPS", "retryMult", "retries", "riskyRetryA", "riskyRetryB"] {
+	for keyName in ["keyDelay", "keyDuration", "extraSellWait", "afterWFCPS", "retryMult", "retries"] {
 		timing.%keyName% := IniRead(config.file, "Timing", keyName, timing.%keyName%)
 		msg .= " " keyName "=" timing.%keyName%
 	}
@@ -191,14 +193,13 @@ readTimingConfig() {
 }
 
 ;update config.ini, convert 0.2.0 to 0.3.0
-if (config.iniVersion="") {
+if (config.version="") {
 	; get cSFocusDim (the wrong name for the color, which we used before 0.3.0), delete it from config.ini, save it back as cSNoFocusDim so it's there when we readButtonConfig(sellTab)
 	if (color := IniRead(config.file, "sellTab", "cSFocusDim", "")) {
 		IniDelete(config.file, "sellTab", "cSFocusDim")
 		IniWrite(color, config.file, "sellTab", "cSNoFocusDim")
 	}
-	config.iniVersion := "0.3.0"
-	writeConfigVar("version", config.iniVersion)
+	writeConfigVar("version", config.version := "0.3.0")				; the first version with this config.ini; the current version may be higher
 }
 
 colorNames := ["cSFocus", "cSNoFocus", "cSNoFocusDim", "cSFocusZero", "cSNoFocusZero"]
@@ -441,11 +442,13 @@ actionStats := 0	; map of button name, color name, seconds => total duration, mi
 actionLast := 0		; map of button name, color name, seconds => duration, last time we logged this action, failMsg, attempts
 actionIds := 0		; the actions we've seen, in the order we first saw them
 prevAction := 0		; the last action we logged, when (in msec since reboot), how many times we've tried it, waits for pixelsearch, keys sent
+stats := 0
 logActionInit() {
 	global actionStats := Map()
 	global actionLast := Map()
 	global actionIds := Array()
 	global prevAction := {id: "", tick: 0, attempts:0, pixelWaits:0, keySeq:""}
+	global stats := {phantomEmpty:0}
 }
 logAction(btn, col, sec, keySeq, failMsg:=""){									; we don't know how long an action took until the next one starts,
 	id := (btn ? btn.name : "") "-" col "-" sec, tick := A_TickCount			;	so actionStats[]{} gets populated with last action's data from prevAction{}
@@ -476,7 +479,7 @@ logAction(btn, col, sec, keySeq, failMsg:=""){									; we don't know how long 
 	}
 	prevAction.id := id, prevAction.tick := tick, prevAction.attempts := 1, prevAction.pixelWaits := 0, prevAction.keySeq := keySeq		; record the just-started action in prevAction
 	if failMsg
-		EnvSet("SELL1_STATUS", failMsg)
+		EnvSet("SELL1_STATUS", failMsg)											; for notifyProgram
 }
 logActionRetry(){
 	global prevAction
@@ -507,10 +510,12 @@ logActionFinal(){
 			totalRetries += (A_Index>1 ? stat.attempts[A_Index] : 0)
 			attMsg .= (A_Index>1 ? ", " : "") . stat.attempts[A_Index]
 		}
-		L(Format("id={:-" idLen "} avg={:-4} duration={:-7} min={:-4} max={:-4} pxWaits={:-6} attempts={:-12} keySeq={}",
+		L(Format("id={:-" idLen "} avg={:-4} duration={:-8} min={:-4} max={:-5} pxWaits={:-6} attempts={:-12} keySeq={}",
 			id, avg, stat.duration, stat.min, stat.max, stat.pixelWaits, "[" attMsg "]", stat.keySeq))
 	}
-	EnvSet("SELL1_RETRIES", totalRetries)
+	EnvSet("SELL1_RETRIES", totalRetries)									; for notifyProgram
+	if stats.phantomEmpty
+		Lw(Format("SELL COMMODITY screen erroneously reported we're empty {} time{}", stats.phantomEmpty, (stats.phantomEmpty>1)?"s":""))
 }
 logActionPause(mode) {
 	static pauseTime := 0
@@ -539,7 +544,7 @@ timekeeper(mode){							; not critical to operation, just a little monitoring
 	} else if (mode = "final") {
 		GuiCtrlPaused.Text := mmssTime(A_TickCount - startTime)
 		L("total time: " GuiCtrlPaused.Text)
-		L("average time: " mmssTime((A_TickCount - startTime) / count))
+		L("average time: " mmssTime(count ? ((A_TickCount - startTime) / count) : 0))
 	} else if (!mode){
 		startTime := A_TickCount
 	} else {
@@ -642,11 +647,12 @@ VerifyStartingPosition(){
 }
 
 smallSalesOnExit(){
-	L('smallSalesOnExit() config.notifyProgram="' config.notifyProgram '"')
-	if (config.notifyProgram)
+	if (config.notifyProgram) {
+		L('smallSalesOnExit() config.notifyProgram="' config.notifyProgram '"')
 		Run(config.notifyProgram)
-	Ld("smallSalesOnExit() config.optionExitGameAtEnd=" config.optionExitGameAtEnd " GuiCtrlExitGameAtEnd.Value=" GuiCtrlExitGameAtEnd.Value)
+	}
 	if (GuiCtrlExitGameAtEnd.Value){
+		Ld("smallSalesOnExit() config.optionExitGameAtEnd=" config.optionExitGameAtEnd " GuiCtrlExitGameAtEnd.Value=" GuiCtrlExitGameAtEnd.Value)
 		SetKeyDelay 2000, 200
 		SendEvent("{" k.escape "}{" k.up "}{" k.select "}{" k.right "}{" k.select "}")		;exits the game commodities or sell screen
 		ExitApp()				; no point in sticking around -- after the game exits our hwnd is invalid
@@ -659,7 +665,7 @@ smallSales(saleSize){		; saleSize is the number of tons to sell at a time.
   sold := 0
   GuiCtrlRetries := 0
   global PauseOperation
-  EnvSet("SELL1_SALESIZE", saleSize)
+  EnvSet("SELL1_SALESIZE", saleSize)															; for notifyProgram
   logActionInit()
   if !VerifyStartingPosition()
 	return beepFailure()
@@ -669,12 +675,16 @@ smallSales(saleSize){		; saleSize is the number of tons to sell at a time.
     SetKeyDelay timing.keyDelay, timing.keyDuration
 	sellKey := (testMode) ? ("{" k.cancel "}") : ("{" k.select "}")								; testMode is true for testing, false for actually selling
 	timekeeper(sold)
-	EnvSet("SELL1_SOLD", sold)
+	EnvSet("SELL1_SOLD", sold)																	; for notifyProgram
+	finishBatch ? Ld("smallSales() main loop, finishBatch=" finishBatch) :0
 	; to differentiate them for debugging, each button/color/seconds tuple should be unique.  it's displayed on the 2nd-from-bottom line in the gui
-	Ld("smallSales() main loop, finishBatch=" finishBatch)
 
 	; if the sell commodity screen will occasionally lie and say we have 0t of inventory, we may have to double-check when we finish, by backing out and going back in, to see if it repopulates
 	for try_again in [1, 0] {
+		if (config.maxTonsToSell && (sold >= config.maxTonsToSell)) {
+			finishBatch++
+			try_again := 0
+		}
 		if (WaitForColor(sellButton, "cSFocusZero", 0) || finishBatch) {						; nothing left, we're done! (probably.  we should double-check first, just to be safe)
 			if !try_again {
 			    finishBatch := false
@@ -688,8 +698,13 @@ smallSales(saleSize){		; saleSize is the number of tons to sell at a time.
 				break 2
 			if !SendAndWaitForColor("{" k.select "}", sellTab, "cSNoFocusDim", 3, 1)
 				break 2
-		} else
+		} else {																				; looks like we still have some inventory, let's keep going
+			if !try_again {																		; but just a second ago we thought we were empty?!?   /sigh
+				Le("SELL COMMODITY screen said we're empty, but 2nd look said we're not.  WTF over")
+				stats.phantomEmpty++
+			}
 			break																				; if SELL isn't saying empty, let's keep going
+		}
 	}
 
 	if (!SendAndWaitForColor("", sellButton, "cSFocus", 2, 0))									; verify we're on the sell button, and set the "previous" button/color for the next SendAndWaitForColor
@@ -709,9 +724,11 @@ smallSales(saleSize){		; saleSize is the number of tons to sell at a time.
 
 	for try_again in [1,1,1,1,0] {																; (see the next for loop for rationale)
 		if SendAndWaitForColor(sellKey, sellTab, "cSNoFocus", 10, 1) {							; sell and wait for the sell window to go away, revealing sellTab without the dimming.
-			SetKeyDelay timing.keyDelay, timing.keyDuration	
+			SetKeyDelay timing.keyDelay, timing.keyDuration
+			prevAction.attempts := A_INDEX
 			break
 		}
+		prevAction.attempts := A_INDEX
 		if !try_again
 			break 2
 		SetKeyDelay 4*timing.keyDelay, 4*timing.keyDuration
@@ -726,11 +743,13 @@ smallSales(saleSize){		; saleSize is the number of tons to sell at a time.
 
 	; select the commodity again from the list, to get to the SELL COMMODITY screen
 	; we can't retry by just smashing {Space} a few times -- a bad lag spike means one gets accepted, then the second clicks SELL with the entire inventory selected
-	for try_again in [1,1,1,1,0] {		; I *could* come up with some code to have this match timing.retries, but would that really improve anyone's life, or the clarity of this loop?
+	for try_again in [1,1,1,1,0] {			; I *could* come up with some code to have this match timing.retries, but would that really improve anyone's life, or the clarity of this loop?
 		if SendAndWaitForColor("{" k.select "}", sellTab, "cSNoFocusDim", 5, 1) {									; if it works, yay!  we move on by exiting the for loop
 			SetKeyDelay timing.keyDelay, timing.keyDuration															; we can stop being so paranoid
+			prevAction.attempts := A_INDEX																			; record how many tries it took to sell, for statistics.  we're manually recreating what happens inside SendAndWaitForColor() with this for loop, so we've gotta log like it as well
 			break
 		}
+		prevAction.attempts := A_INDEX																				; really, this should go in SendAndWaitForColor(), but it'd be a whole 'nother mode for that, and this is simpler
 		if !try_again																								; if that was our last shot, we bail
 			break 2
 		SetKeyDelay 4*timing.keyDelay, 4*timing.keyDuration															; slow & steady
@@ -759,8 +778,13 @@ smallSales(saleSize){		; saleSize is the number of tons to sell at a time.
 		break
 	  timekeeper("resume"), logActionPause("resume"), GuiCtrlPaused.Text := ""
 	}
+	if config.debugmode {
+		if stats.phantomEmpty && !config.maxTonsToSell		; stop after one phantom empty, so we can see what's going on
+			config.maxTonsToSell := sold + 2
+	}
   }
   logActionFinal()		; write the summary statistics to the log.  something in SendAndWaitForColor() failed, so logAction() already got called with a failure message
+  timekeeper("final")
   smallSalesOnExit()
   beepFailure()
 }
