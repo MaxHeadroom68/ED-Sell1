@@ -67,10 +67,10 @@ Below are some config variables with their default values.
 (warning: just use the "`key=value`" parts.  config.ini doesn't support comments, so don't cut'n'paste any line with comments on it.)
 ```
 [Settings]
-minLogLevel=1				; 0 - debug (logs ~15 lines per sale);  1 - important stuff and a summary at the end
-logfileopenmode=a			; a - append to today's logfile;  w - clear out log file before each run
-optionExitGameAtEnd=0		; 1 - show a checkbox on the GUI; click it to exit the game when this load is done
 saleSize2ndKey=2			; Ctl-Alt-F7 will sell this many tons at a time
+minLogLevel=0				; 0 - debug (logs ~15 lines per sale);  1 - important stuff and a summary at the end
+logfileopenmode=w			; a - append to today's logfile;  w - clear out log file before each run
+optionExitGameAtEnd=0		; 1 - show a checkbox on the GUI; click it to exit the game when this load is done
 maxTonsToSell=0				; if >0, will end the batch at this many tons
 notifyProgram=""			; a string to be Run() when we're done selling
 ```
