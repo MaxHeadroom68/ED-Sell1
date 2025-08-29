@@ -23,7 +23,8 @@
 ; - If you're having a hard time making this work well, AHK comes with WindowSpy to look at pixel locations and colors,
 ;   and you can edit %APPDATA%\APPNAME\config.ini to change locations of the pixels we're looking at, and the colors we're looking for
 ;   but you shouldn't need to do that, and I'd love it if you could let me know by filing an issue on GitHub
-; - Speed on my machine: 4.3sec/sale at 780tons, 2.9sec/sale at 10tons
+; - v0.2.0 speed on my machine: 4.3sec/sale at 780tons, 2.9sec/sale at 10tons
+; - v0.3.3 Speed on my machine: 3.5sec/sale at 780tons, 1.8sec/sale at 10tons
 
 #HotIf WinActive("ahk_class FrontierDevelopmentsAppWinClass")
 ^!F8::smallSales(1)
