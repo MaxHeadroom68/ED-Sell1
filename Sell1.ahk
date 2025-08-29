@@ -654,7 +654,9 @@ smallSalesOnExit(){
 	}
 	if (GuiCtrlExitGameAtEnd.Value){
 		Ld("smallSalesOnExit() config.optionExitGameAtEnd=" config.optionExitGameAtEnd " GuiCtrlExitGameAtEnd.Value=" GuiCtrlExitGameAtEnd.Value)
-		SetKeyDelay 2000, 200
+		SetKeyDelay(1000, 200)
+		Sleep(1000)
+		activateEDWindow()
 		SendEvent("{" k.escape "}{" k.up "}{" k.select "}{" k.right "}{" k.select "}")		;exits the game commodities or sell screen
 		ExitApp()				; no point in sticking around -- after the game exits our hwnd is invalid
 	}
