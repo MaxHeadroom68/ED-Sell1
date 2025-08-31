@@ -691,7 +691,7 @@ smallSales(saleSize){		; saleSize is the number of tons to sell at a time.
 		if (WaitForColor(sellButton, "cSFocusZero", 0) || finishBatch) {						; nothing left, we're done! (probably.  we should double-check first, just to be safe)
 			if !try_again {
 			    finishBatch := false
-				logAction("", "", 0, "", "successful_finish")									; write the final action to the log
+				logAction("", "", 0, "", "Success!")											; write the final action to the log
 				logActionFinal()																; write the summary statistics to the log
 			    timekeeper("final")
 				smallSalesOnExit()
