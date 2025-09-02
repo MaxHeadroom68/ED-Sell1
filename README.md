@@ -129,3 +129,40 @@ A few environment variables are set, to provide a bit more information in your n
 - `SELL1_RETRIES`  How many times we timed out and tried again.
 
 A `notify-stub.py` is included for testing purposes, which will log these variables to `%LocalAppData%\Sell1\notify.log`.
+
+#### notify-discord.py
+To log to Discord, you'll need:
+- Python installed on your PC, verify this in a CMD window with `py --version`
+- (If you need to install Python, visit: https://python.org/downloads and remember to click "add to PATH" during installation)
+- The package `discord-webhook` installed.  In a CMD window, type `py -m pip install discord-webhook`
+- A Discord server.  Maybe you want to create your own server (for free): https://support.discord.com/hc/en-us/articles/204849977-How-do-I-create-a-server
+- A channel.  You might want to create a one named #sell1, and set up notifications so that you get an alert for every message.
+- A webhook URL for the channel where you want messages to appear: https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks
+- If you want messages to ping you, your Discord user ID.  Send `\@yourusername` on Discord, it'll show `@somenumbers` and you only want to use the numbers for your `userID`.
+
+Edit the `[Settings]` section of `config.ini` to use `notify-discord.py` as `notifyProgram`:
+```
+[Settings]
+notifyProgram="py .\notify-discord.py"
+```
+
+Create (or edit) a `[Discord]` section of `config.ini` to use the webhook URL you just created:
+```
+[Discord]
+webhookURL="https://discord.com/api/webhooks/YourNumbersYouJustCreated/DoNotUseThisItIsJustAnExampleNumbersNumbers"
+userID=123456789012345678
+```
+
+To test it, in a CMD window type `py .\notify-discord.py` and something should show up in your Discord channel.
+
+If you add the optional `userID` line, two more lines will appear in the `[Discord]` section:
+```
+optionEnablePing=1		; set this to zero if you want the enablePing checkbox to go away
+enablePing=0			; this is controlled by the "enable ping" checkbox on the GUI
+```
+If you always want the ping, and don't want the checkbox on the GUI, set `optionEnablePing=0` and `enablePing=1`.
+
+If you want to change the name the notification appears to be from:
+```
+username=Sell1
+```

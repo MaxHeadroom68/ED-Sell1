@@ -38,7 +38,7 @@ Pause::togglePause()	; make sure to be on the SELL COMMODITY screen when you un-
 
 k := {up: "w", down: "s", left: "a", right: "d", select: "Space", escape:"Escape", click: "LButton", cancel: "RButton"}	; see readKeysConfig() below to customize
 
-;TODO: gracefully handle end of batch when there are no more commodities listed
+;TODO: gracefully handle end of batch when there are no more commodities listed  (uh... how?)
 ;TODO: optionally drop a .csv in config.logdir with everything from logAction() and prevAction{}
 ;TODO: make the input keys (Pause, ^!F8, etc) configurable in config.ini, so you can change them to something else if you like.  How to do that without sacrificing readability?
 ;TODO: figure out what's up with the reported cursor xy not matching the window
@@ -193,6 +193,28 @@ readTimingConfig() {
 	L(msg)
 }
 
+discord := {webhookURL:"", userID:"", optionEnablePing:0, enablePing:0}
+readDiscordConfig(){
+	global discord
+	section := "Discord"
+	if !IniRead(config.file, "Discord")
+		return
+	msg := "readDiscordConfig() "
+	discord.webhookURL := IniRead(config.file, section, "webhookURL", "")
+	discord.userID     := IniRead(config.file, section, "userID",     "")
+	if (discord.webhookURL && discord.userID) {
+		discord.optionEnablePing := IniRead(config.file, section, "optionEnablePing", 1)
+		IniWrite(discord.optionEnablePing, config.file, section, "optionEnablePing")		;thought about making this implicitly=1 when we have a webhookURL & userID, but the user might want to turn it off to unclutter the GUI
+		discord.enablePing := IniRead(config.file, section, "enablePing", 1)				;checkbox will control this
+	}
+	for keyName in ["webhookURL", "userID", "optionEnablePing", "enablePing"] {
+		msg .= " " keyName "=" discord.%keyName%
+	}
+	if config.debugMode
+		L(msg)															; don't be logging webhooks that might get sent to me, unless in debug mode
+}
+readDiscordConfig()
+
 ;update config.ini, convert 0.2.0 to 0.3.0
 if (config.version="") {
 	; get cSFocusDim (the wrong name for the color, which we used before 0.3.0), delete it from config.ini, save it back as cSNoFocusDim so it's there when we readButtonConfig(sellTab)
@@ -275,6 +297,22 @@ GuiCtrlWaitSec   := G.Add("Text", "X+3 ys", "XX")
 
 GuiCtrlSellTabColor    := G.Add("Text", "X9 Y+2 Section", "0xXXXXXX")
 GuiCtrlSellButtonColor := G.Add("Text", "X+3 ys", "0xXXXXXX")
+
+if discord.optionEnablePing {
+	GuiCtrlEnablePing := G.Add("CheckBox", "X9 Y+3", "Enable Ping?")
+	GuiCtrlEnablePing.Value := discord.enablePing
+	GuiCtrlEnablePing.OnEvent("Click", handleEnablePing)
+	handleEnablePing()
+} else
+	GuiCtrlEnablePing := {Value:discord.enablePing}
+handleEnablePing(*){
+	global discord
+	discord.enablePing := GuiCtrlEnablePing.Value ? 1 : 0
+	IniWrite(discord.enablePing, config.file, "Discord", "enablePing")
+	Ld("handleEnablePing() enablePing: " discord.enablePing)
+	activateEDWindow()
+}
+
 if (config.optionExitGameAtEnd) {
 	GuiCtrlExitGameAtEnd := G.Add("CheckBox", "X9 Y+3", "Exit Game At End?")
 	GuiCtrlExitGameAtEnd.OnEvent("Click", (*) => activateEDWindow())
@@ -298,6 +336,8 @@ SaveGUIPosition(wParam, lParam, msg, hwnd) {	; Save GUI position when move/resiz
 	writeConfigVar("guiY", y)
 }
 
+readKeysConfig()
+readTimingConfig()
 while (!buttonsAreInitialized()) {
 	if !initButtons() {		; if the user clicks cancel, we don't want to do anything
 		MsgBox("Initialization cancelled.  Exiting script.")
@@ -307,11 +347,9 @@ while (!buttonsAreInitialized()) {
 		MsgBox("Initialization failed.  Please try again.")
 }
 activateEDWindow()
-
-readKeysConfig()
-readTimingConfig()
 beepHello()
 
+; done with initializing things, generic functions, getting the user configured.  finally ready to start working
 
 ; Luminance = (0.2126 * R + 0.7152 * G + 0.0722 * B)
 requestMouseXY(btn, msg := "") {
@@ -654,7 +692,9 @@ smallSalesOnExit(){
 	}
 	if (GuiCtrlExitGameAtEnd.Value){
 		Ld("smallSalesOnExit() config.optionExitGameAtEnd=" config.optionExitGameAtEnd " GuiCtrlExitGameAtEnd.Value=" GuiCtrlExitGameAtEnd.Value)
-		SetKeyDelay 2000, 200
+		SetKeyDelay(1000, 200)
+		Sleep(1000)
+		activateEDWindow()
 		SendEvent("{" k.escape "}{" k.up "}{" k.select "}{" k.right "}{" k.select "}")		;exits the game commodities or sell screen
 		ExitApp()				; no point in sticking around -- after the game exits our hwnd is invalid
 	}
@@ -689,7 +729,7 @@ smallSales(saleSize){		; saleSize is the number of tons to sell at a time.
 		if (WaitForColor(sellButton, "cSFocusZero", 0) || finishBatch) {						; nothing left, we're done! (probably.  we should double-check first, just to be safe)
 			if !try_again {
 			    finishBatch := false
-				logAction("", "", 0, "", "successful_finish")									; write the final action to the log
+				logAction("", "", 0, "", "Success!")											; write the final action to the log
 				logActionFinal()																; write the summary statistics to the log
 			    timekeeper("final")
 				smallSalesOnExit()
