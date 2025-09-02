@@ -95,11 +95,15 @@ def load_config():
 # Usage
 config = load_config()
 webhook_url = config['Discord']['webhookURL']
-username = config.get('Discord', 'username', fallback=appname)
+username    = config.get('Discord', 'username', fallback=appname)
+userID      = config.get('Discord', 'userID',   fallback="")
+enablePing  = int(config.get('Discord', 'enablePing', fallback=0))
 
 dmsg = f" {status}" if status else ""
 dmsg += f" sold={sold}" if sold else ""
 dmsg += f" salesize={salesize}" if (not str.isdigit(salesize) or int(salesize)>1) else ""
 dmsg += f" retries={retries}"   if (not str.isdigit(retries)  or int(retries)>0)  else ""
+dmsg += f" <@{userID}>"         if (str.isdigit(userID) and enablePing) else ""
+
 webhook = DiscordWebhook(url=webhook_url, username=username, content=dmsg)
 response = webhook.execute()
