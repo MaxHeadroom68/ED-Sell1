@@ -38,8 +38,7 @@ Pause::togglePause()	; make sure to be on the SELL COMMODITY screen when you un-
 
 k := {up: "w", down: "s", left: "a", right: "d", select: "Space", escape:"Escape", click: "LButton", cancel: "RButton"}	; see readKeysConfig() below to customize
 
-;TODO: more readKeysConfig() above first-time-config code
-;TODO: gracefully handle end of batch when there are no more commodities listed
+;TODO: gracefully handle end of batch when there are no more commodities listed  (uh... how?)
 ;TODO: optionally drop a .csv in config.logdir with everything from logAction() and prevAction{}
 ;TODO: make the input keys (Pause, ^!F8, etc) configurable in config.ini, so you can change them to something else if you like.  How to do that without sacrificing readability?
 ;TODO: figure out what's up with the reported cursor xy not matching the window
@@ -337,6 +336,8 @@ SaveGUIPosition(wParam, lParam, msg, hwnd) {	; Save GUI position when move/resiz
 	writeConfigVar("guiY", y)
 }
 
+readKeysConfig()
+readTimingConfig()
 while (!buttonsAreInitialized()) {
 	if !initButtons() {		; if the user clicks cancel, we don't want to do anything
 		MsgBox("Initialization cancelled.  Exiting script.")
@@ -346,11 +347,9 @@ while (!buttonsAreInitialized()) {
 		MsgBox("Initialization failed.  Please try again.")
 }
 activateEDWindow()
-
-readKeysConfig()
-readTimingConfig()
 beepHello()
 
+; done with initializing things, generic functions, getting the user configured.  finally ready to start working
 
 ; Luminance = (0.2126 * R + 0.7152 * G + 0.0722 * B)
 requestMouseXY(btn, msg := "") {
