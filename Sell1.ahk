@@ -38,6 +38,7 @@ Pause::togglePause()	; make sure to be on the SELL COMMODITY screen when you un-
 
 k := {up: "w", down: "s", left: "a", right: "d", select: "Space", escape:"Escape", click: "LButton", cancel: "RButton"}	; see readKeysConfig() below to customize
 
+;TODO: more readKeysConfig() above first-time-config code
 ;TODO: gracefully handle end of batch when there are no more commodities listed
 ;TODO: optionally drop a .csv in config.logdir with everything from logAction() and prevAction{}
 ;TODO: make the input keys (Pause, ^!F8, etc) configurable in config.ini, so you can change them to something else if you like.  How to do that without sacrificing readability?
@@ -193,6 +194,28 @@ readTimingConfig() {
 	L(msg)
 }
 
+discord := {webhookURL:"", userID:"", optionEnablePing:0, enablePing:0}
+readDiscordConfig(){
+	global discord
+	section := "Discord"
+	if !IniRead(config.file, "Discord")
+		return
+	msg := "readDiscordConfig() "
+	discord.webhookURL := IniRead(config.file, section, "webhookURL", "")
+	discord.userID     := IniRead(config.file, section, "userID",     "")
+	if (discord.webhookURL && discord.userID) {
+		discord.optionEnablePing := IniRead(config.file, section, "optionEnablePing", 1)
+		IniWrite(discord.optionEnablePing, config.file, section, "optionEnablePing")		;thought about making this implicitly=1 when we have a webhookURL & userID, but the user might want to turn it off to unclutter the GUI
+		discord.enablePing := IniRead(config.file, section, "enablePing", 1)				;checkbox will control this
+	}
+	for keyName in ["webhookURL", "userID", "optionEnablePing", "enablePing"] {
+		msg .= " " keyName "=" discord.%keyName%
+	}
+	if config.debugMode
+		L(msg)															; don't be logging webhooks that might get sent to me, unless in debug mode
+}
+readDiscordConfig()
+
 ;update config.ini, convert 0.2.0 to 0.3.0
 if (config.version="") {
 	; get cSFocusDim (the wrong name for the color, which we used before 0.3.0), delete it from config.ini, save it back as cSNoFocusDim so it's there when we readButtonConfig(sellTab)
@@ -275,6 +298,22 @@ GuiCtrlWaitSec   := G.Add("Text", "X+3 ys", "XX")
 
 GuiCtrlSellTabColor    := G.Add("Text", "X9 Y+2 Section", "0xXXXXXX")
 GuiCtrlSellButtonColor := G.Add("Text", "X+3 ys", "0xXXXXXX")
+
+if discord.optionEnablePing {
+	GuiCtrlEnablePing := G.Add("CheckBox", "X9 Y+3", "Enable Ping?")
+	GuiCtrlEnablePing.Value := discord.enablePing
+	GuiCtrlEnablePing.OnEvent("Click", handleEnablePing)
+	handleEnablePing()
+} else
+	GuiCtrlEnablePing := {Value:discord.enablePing}
+handleEnablePing(*){
+	global discord
+	discord.enablePing := GuiCtrlEnablePing.Value ? 1 : 0
+	IniWrite(discord.enablePing, config.file, "Discord", "enablePing")
+	Ld("handleEnablePing() enablePing: " discord.enablePing)
+	activateEDWindow()
+}
+
 if (config.optionExitGameAtEnd) {
 	GuiCtrlExitGameAtEnd := G.Add("CheckBox", "X9 Y+3", "Exit Game At End?")
 	GuiCtrlExitGameAtEnd.OnEvent("Click", (*) => activateEDWindow())

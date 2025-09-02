@@ -138,6 +138,7 @@ To log to Discord, you'll need:
 - A Discord server.  Maybe you want to create your own server (for free): https://support.discord.com/hc/en-us/articles/204849977-How-do-I-create-a-server
 - A channel.  You might want to create a one named #sell1, and set up notifications so that you get an alert for every message.
 - A webhook URL for the channel where you want messages to appear: https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks
+- If you want messages to ping you, your Discord user ID.  Send `\@yourusername` on Discord, it'll show `@somenumbers` and you only want to use the numbers for your `userID`.
 
 Edit the `[Settings]` section of `config.ini` to use `notify-discord.py` as `notifyProgram`:
 ```
@@ -149,6 +150,19 @@ Create (or edit) a `[Discord]` section of `config.ini` to use the webhook URL yo
 ```
 [Discord]
 webhookURL="https://discord.com/api/webhooks/YourNumbersYouJustCreated/DoNotUseThisItIsJustAnExampleNumbersNumbers"
+userID=123456789012345678
 ```
 
 To test it, in a CMD window type `py .\notify-discord.py` and something should show up in your Discord channel.
+
+If you add the optional `userID` line, two more lines will appear in the `[Discord]` section:
+```
+optionEnablePing=1		; set this to zero if you want the enablePing checkbox to go away
+enablePing=0			; this is controlled by the "enable ping" checkbox on the GUI
+```
+If you always want the ping, and don't want the checkbox on the GUI, set `optionEnablePing=0` and `enablePing=1`.
+
+If you want to change the name the notification appears to be from:
+```
+username=Sell1
+```
