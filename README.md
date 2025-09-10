@@ -139,7 +139,7 @@ To log to Discord, you'll need a few things:
   and click ["add Python to environment variables"](./docs/images/Python_Setup_2.png) in Advanced Options
 - The package `discord-webhook` installed.  In a CMD window, type `py -m pip install discord-webhook`
 - A Discord server.  Maybe you want to create your own server (for free): https://support.discord.com/hc/en-us/articles/204849977-How-do-I-create-a-server
-- A channel.  You might want to create a one named #sell1, and set up notifications so that you get an alert for every message.
+- A channel.  You might want to create one named #sell1, and set up notifications so that you get an alert for every message.
   Or you could ping your userID explicitly, an option selectable with a checkbox as described below.
 - A webhook URL for the channel where you want messages to appear: https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks
 - If you want messages to ping you, your Discord user ID.  Send `\@yourusername` on Discord, it'll show `@somenumbers` and you only want to use the numbers for your `userID`.
