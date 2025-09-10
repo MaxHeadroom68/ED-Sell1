@@ -7,10 +7,11 @@ import configparser
 from discord_webhook import DiscordWebhook
 
 # Get the status from environment variable
-status      = os.environ.get('SELL1_STATUS',    'UNKNOWN')
-salesize    = os.environ.get('SELL1_SALESIZE',  'UNKNOWN')
-sold        = os.environ.get('SELL1_SOLD',      'UNKNOWN')
-retries     = os.environ.get('SELL1_RETRIES',   'UNKNOWN')
+status      = os.environ.get('SELL1_STATUS',      'UNKNOWN')
+salesize    = os.environ.get('SELL1_SALESIZE',    'UNKNOWN')
+sold        = os.environ.get('SELL1_SOLD',        'UNKNOWN')
+retries     = os.environ.get('SELL1_RETRIES',     'UNKNOWN')
+elapsed     = os.environ.get('SELL1_ELAPSEDTIME', 'UNKNOWN')
 appname     = 'Sell1'
 
 # Create timestamp
@@ -103,6 +104,7 @@ dmsg = f" {status}" if status else ""
 dmsg += f" sold={sold}" if sold else ""
 dmsg += f" salesize={salesize}" if (not str.isdigit(salesize) or int(salesize)>1) else ""
 dmsg += f" retries={retries}"   if (not str.isdigit(retries)  or int(retries)>0)  else ""
+dmsg += f" elapsed={elapsed}"   if (not str.isdigit(elapsed)  or int(elapsed)>0)  else ""
 dmsg += f" <@{userID}>"         if (str.isdigit(userID) and enablePing) else ""
 
 webhook = DiscordWebhook(url=webhook_url, username=username, content=dmsg)
