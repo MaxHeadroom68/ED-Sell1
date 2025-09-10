@@ -1,2 +1,23 @@
+# Default to LF line endings for text files
 * text eol=lf
+
+# Windows-specific files that need CRLF
 *.bat text eol=crlf
+
+# Binary files (no line ending conversion)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.svg binary
+
+# Archives
+*.zip binary
+*.tar binary
+*.gz binary
+
+# Executables
+*.exe binary
+*.dll binary

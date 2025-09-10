@@ -13,10 +13,9 @@
 ; - Since it's reading the screen colors, if it loses sync it'll just stop rather than going crazy
 ; - No need to tell it how many to sell, it'll empty your hold and stop
 ; - If you have a few different commodities in your hold and wish to sell them all,
-;   filter the commodities list to only show "in inventory", and start with the top one in the list
+;   filter the commodities list to only show "in inventory"; when done with one it'll switch to another
 ; - If there's a lag spike or the server loses a keypress, it'll verify it's still in the right place and retry a few times
 ;   (the "retries=" on the popup is the total number of retries since you hit ^!F8), "try=" is how many of the 3 retries you're on
-; - If you want an option to sell other size lots (like 2, or 8), edit the ^!F7 line below
 ; - You can get faster sales and better reliability by descending into the hangar before selling
 ;   since your game client doesn't have to think about all those other ships flying around
 ; - in the [Settings] section of config.ini, add "optionExitGameAtEnd=1" if you want a checkbox that'll log out of the game when we're done selling a load
@@ -556,7 +555,7 @@ logActionFinal(){
 	if stats.phantomEmpty
 		Lw(Format("SELL COMMODITY screen erroneously reported we're empty {} time{}", stats.phantomEmpty, (stats.phantomEmpty>1)?"s":""))
 }
-logActionPause(mode) {
+logActionPause(mode) {		; if we switch to recording the pause length, this can go into a running total, then at completion be subtracted from a batch total time
 	static pauseTime := 0
 	if (mode = "pause")
 		pauseTime := A_TickCount
@@ -582,6 +581,7 @@ timekeeper(mode){							; not critical to operation, just a little monitoring
 		startTime += (A_TickCount - pauseTime)
 	} else if (mode = "final") {
 		GuiCtrlPaused.Text := mmssTime(A_TickCount - startTime)
+		EnvSet("SELL1_ELAPSEDTIME", GuiCtrlPaused.Text)
 		L("total time: " GuiCtrlPaused.Text)
 		L("average time: " mmssTime(count ? ((A_TickCount - startTime) / count) : 0))
 	} else if (!mode){

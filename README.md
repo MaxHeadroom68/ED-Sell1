@@ -6,7 +6,7 @@ script in [AutoHotKey V2](https://www.autohotkey.com/docs/v2/howto/Install.htm)
 - If it loses sync, it'll stop rather than wandering through the menu and selling your Corvette.
 - If it thinks the only thing wrong is the game didn't see a keypress, it'll wait a bit and try again, up to 5 times.
 - Works with the "More Info" sidebar displayed or not.
-- You don't need to have the cursor on the SELL button, just be on the SELL COMMODITY screen.
+- You don't need to start with the cursor on the SELL button, just be on the SELL COMMODITY screen.
 - Second hotkey for selling slightly larger lots (like 2-8)
 - Pause key will pause operation
 - Configurable timing settings: inter-keypress delay, keypress duration, timout scale factor
@@ -21,7 +21,7 @@ Or delete the file `%AppData%\Sell1\config.ini` then restart the script.
 
 ## GUI
 On start, a small GUI will show command keys, and some timing and debug information.
-Also links to config, log, and script directories.
+Also links to config, log, and script directories, and this README.
 
 ## Operation notes
 
@@ -127,16 +127,20 @@ A few environment variables are set, to provide a bit more information in your n
 - `SELL1_SALESIZE`  How many tons are sold at a time.
 - `SELL1_SOLD`  How many tons were sold.
 - `SELL1_RETRIES`  How many times we timed out and tried again.
+- `SELL1_ELAPSEDTIME`  Elapsed time, as shown on the GUI at completion.
 
 A `notify-stub.py` is included for testing purposes, which will log these variables to `%LocalAppData%\Sell1\notify.log`.
 
 #### notify-discord.py
-To log to Discord, you'll need:
-- Python installed on your PC, verify this in a CMD window with `py --version`
-- (If you need to install Python, visit: https://python.org/downloads and remember to click "add to PATH" during installation)
+To log to Discord, you'll need a few things:
+- Python installed on your PC.  Verify this in a CMD window with `py --version`
+- (If you need to install Python, visit: https://python.org/downloads and during installation,
+  remember to click the checkboxes to [add `pip` and the `py` launcher](./docs/images/Python_Setup_1.png),
+  and click ["add Python to environment variables"](./docs/images/Python_Setup_2.png) in Advanced Options
 - The package `discord-webhook` installed.  In a CMD window, type `py -m pip install discord-webhook`
 - A Discord server.  Maybe you want to create your own server (for free): https://support.discord.com/hc/en-us/articles/204849977-How-do-I-create-a-server
-- A channel.  You might want to create a one named #sell1, and set up notifications so that you get an alert for every message.
+- A channel.  You might want to create one named #sell1, and set up notifications so that you get an alert for every message.
+  Or you could ping your userID explicitly, an option selectable with a checkbox as described below.
 - A webhook URL for the channel where you want messages to appear: https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks
 - If you want messages to ping you, your Discord user ID.  Send `\@yourusername` on Discord, it'll show `@somenumbers` and you only want to use the numbers for your `userID`.
 
@@ -149,7 +153,7 @@ notifyProgram="py .\notify-discord.py"
 Create (or edit) a `[Discord]` section of `config.ini` to use the webhook URL you just created:
 ```
 [Discord]
-webhookURL="https://discord.com/api/webhooks/YourNumbersYouJustCreated/DoNotUseThisItIsJustAnExampleNumbersNumbers"
+webhookURL=https://discord.com/api/webhooks/YourNumbersYouJustCreated/DoNotUseThisItIsJustAnExampleNumbersNumbersNumbers
 userID=123456789012345678
 ```
 
