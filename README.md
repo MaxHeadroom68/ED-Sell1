@@ -135,7 +135,7 @@ A `notify-stub.py` is included for testing purposes, which will log these variab
 To log to Discord, you'll need a few things:
 - Python installed on your PC.  Verify this in a CMD window with `py --version`
 - (If you need to install Python, visit: https://python.org/downloads and during installation,
-  remember to click the checkboxes to [add "pip" and the "py" launcher](./docs/images/Python_Setup_1.png),
+  remember to click the checkboxes to [add `pip` and the `py` launcher](./docs/images/Python_Setup_1.png),
   and click ["add Python to environment variables"](./docs/images/Python_Setup_2.png) in Advanced Options
 - The package `discord-webhook` installed.  In a CMD window, type `py -m pip install discord-webhook`
 - A Discord server.  Maybe you want to create your own server (for free): https://support.discord.com/hc/en-us/articles/204849977-How-do-I-create-a-server
