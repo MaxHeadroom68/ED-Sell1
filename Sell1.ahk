@@ -28,7 +28,7 @@
 #HotIf WinActive("ahk_class FrontierDevelopmentsAppWinClass")
 ^!F8::smallSales(1)
 ^!F7::smallSales(config.saleSize2ndKey)		; SmallSales will take any number you like, but keep it small or it'll be slow.  change in config.ini, or just edit this here
-^!F9:: Send("{" k.up " up}{" k.down " up}{" k.left " up}{" k.right " up}{" k.select " up}"), Lw("Reload"), SoundBeep(523, 150), Reload()  ; Reload the script  [shamelessly stolen from OB]
+^!F9:: Send("{" k.up " up}{" k.down " up}{" k.left " up}{" k.right " up}{" k.select " up}"), Lw("Reload"), beepReload(), Reload()  ; Reload the script  [shamelessly stolen from OB]
 ^!F10::initButtons()	; ask where the buttons are, figure out the colors
 ^!F12::setTestMode(!testMode)	; toggle test mode
 ^!+F12::setFinishBatch() 		; we're done now.  helpful for testing, or if we just want to be finished in the middle of a real load
@@ -46,6 +46,7 @@ strRepeat := (string, times) => strReplace( format( "{:" times "}",  "" ), " ", 
 beepHello := () => (SoundBeep(330,120), Sleep(30), SoundBeep(660,100), Sleep(40), SoundBeep(440,150), Sleep(20), SoundBeep(494,120))
 beepConfigure := () => (SoundBeep(523,180), Sleep(40), SoundBeep(659,160), Sleep(50), SoundBeep(784,220))
 beepStart := () => (SoundBeep(587,200), SoundBeep(523,100))
+beepReload := () => (SoundBeep(523, 150))
 beepSuccess := () => (SoundBeep(523,300), Sleep(80), SoundBeep(523, 150), Sleep(5), SoundBeep(784,1000))
 beepFailure := () => (SoundBeep(294,400), Sleep(150), SoundBeep(277,500), Sleep(180), SoundBeep(262,500), Sleep(180), SoundBeep(247,1200))
 Lx := (msg) => OutputDebug(A_ScriptName " " msg)				; log truly heinous errors to the console.  View with DebugView from MS
@@ -56,25 +57,11 @@ PauseOperation := false
 edWin := {x: 0, y: 0, width: 0, height: 0, hwnd: 0}											; Elite Dangerous window
 finishBatch := false		; when true, we'll behave as if we're finished with this load
 
-if (edWin.hwnd := WinExist("ahk_exe EliteDangerous64.exe")){
-	WinActivate			; give ED focus, even though our window is always on top
-	WinGetPos(&x, &y, &w, &h)
-	edWin.x := x, edWin.y := y, edWin.width := w, edWin.height := h
-} else {
-	beepFailure()
-	MsgBox("Elite Dangerous not running, please start the game and try again.")
-	exitApp
-}
-activateEDWindow() {
-	sleep 50
-	WinActivate edWin
-	sleep 50
-}
 
 ; Configuration - store settings in %APPDATA%\SCRIPTNAME\config.ini
 config := {fileName:"config.ini", defaultSection:"Settings",
-	logFileOpenMode:"w", minLogLevel:0, saleSize2ndKey:2, maxTonsToSell:0, optionExitGameAtEnd:0, notifyProgram:"", debugMode:0, version:"",					; there's probably some cool reflective way to DRY, but this works for now, and is clear
-	configVars2: ["logFileOpenMode", "minLogLevel", "saleSize2ndKey", "maxTonsToSell", "optionExitGameAtEnd", "notifyProgram", "debugMode", "version"]		; set now, logged after logging has started
+	logFileOpenMode:"w", minLogLevel:0, saleSize2ndKey:2, maxTonsToSell:0, optionExitGameAtEnd:0, muteBeeps:0, notifyProgram:"", debugMode:0, version:"",					; there's probably some cool reflective way to DRY, but this works for now, and is clear
+	configVars2: ["logFileOpenMode", "minLogLevel", "saleSize2ndKey", "maxTonsToSell", "optionExitGameAtEnd", "muteBeeps", "notifyProgram", "debugMode", "version"]		; set now, logged after logging has started
 }
 initConfig() {
 	config.appDir := A_ScriptDir
@@ -84,7 +71,8 @@ initConfig() {
 		DirCreate(config.dir)
 	config.file := config.dir . "\" . config.fileName
 	if !FileExist(config.file) {
-		writeConfigVar("testMode", testMode ? "1" : "0")  ; store testMode as 1 or 0
+		writeConfigVar("testMode", testMode ? "1" : "0")		; store testMode as 1 or 0
+		writeConfigVar("version", config.version := "0.3.0")	; no need to convert old config.ini, as this one is brand new
 	}
 	localAppData := EnvGet("LocalAppData") || EnvGet("TEMP") || A_Temp
 	config.logdir := localAppData "\" config.appName
@@ -96,6 +84,10 @@ initConfig() {
 	if FileExist(config.logFile) && DateDiff(A_Now, FileGetTime(config.logFile, "M"), "Days") > 2
 		openMode := "w"  ; If the log file is older than 2 days, overwrite it ("w"), even if openMode is set to append ("a")
 	config.logHandle := FileOpen(config.logFile, config.logFileOpenMode)
+	if config.muteBeeps {
+		global beepHello, beepConfigure, beepStart, beepReload, beepSuccess, beepFailure
+		beepHello := beepConfigure := beepStart := beepReload := beepSuccess := beepFailure := () => ""
+	}
 }
 initConfig()
 
@@ -248,6 +240,21 @@ readButtonConfig(sellButton)
 if (!buttonsAreInitialized()) {
 	testMode := true
 	writeConfigVar("testMode", testMode)
+}
+
+if (edWin.hwnd := WinExist("ahk_exe EliteDangerous64.exe")){
+	WinActivate			; give ED focus, even though our window is always on top
+	WinGetPos(&x, &y, &w, &h)
+	edWin.x := x, edWin.y := y, edWin.width := w, edWin.height := h
+} else {
+	beepFailure()
+	MsgBox("Elite Dangerous not running, please start the game and try again.")
+	exitApp
+}
+activateEDWindow() {
+	sleep 50
+	WinActivate edWin
+	sleep 50
 }
 
 G := Gui("AlwaysOnTop -MaximizeBox -MinimizeBox", config.appName)

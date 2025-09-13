@@ -71,6 +71,7 @@ saleSize2ndKey=2			; Ctl-Alt-F7 will sell this many tons at a time
 minLogLevel=0				; 0 - debug (logs ~15 lines per sale);  1 - important stuff and a summary at the end
 logfileopenmode=w			; a - append to today's logfile;  w - clear out log file before each run
 optionExitGameAtEnd=0		; 1 - show a checkbox on the GUI; click it to exit the game when this load is done
+muteBeeps=0					; 1 - no bleep bloops.  (I don't blame you, the sound API in AHK is not great)
 maxTonsToSell=0				; if >0, will end the batch at this many tons
 notifyProgram=""			; a string to be Run() when we're done selling
 ```
