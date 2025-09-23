@@ -37,6 +37,7 @@ Pause::togglePause()	; make sure to be on the SELL COMMODITY screen when you un-
 
 k := {up: "w", down: "s", left: "a", right: "d", select: "Space", escape:"Escape", click: "LButton", cancel: "RButton"}	; see readKeysConfig() below to customize
 
+;TODO: more graphics in README -- where to click, perhaps with transparency or animation to show "more/less info" overlap area
 ;TODO: gracefully handle end of batch when there are no more commodities listed  (uh... how?)
 ;TODO: optionally drop a .csv in config.logdir with everything from logAction() and prevAction{}
 ;TODO: make the input keys (Pause, ^!F8, etc) configurable in config.ini, so you can change them to something else if you like.  How to do that without sacrificing readability?
@@ -188,7 +189,7 @@ discord := {webhookURL:"", userID:"", optionEnablePing:0, enablePing:0}
 readDiscordConfig(){
 	global discord
 	section := "Discord"
-	if !IniRead(config.file, "Discord")
+	if !IniRead(config.file, "Discord",, "")
 		return
 	msg := "readDiscordConfig() "
 	discord.webhookURL := IniRead(config.file, section, "webhookURL", "")
@@ -247,8 +248,8 @@ if (edWin.hwnd := WinExist("ahk_exe EliteDangerous64.exe")){
 	WinGetPos(&x, &y, &w, &h)
 	edWin.x := x, edWin.y := y, edWin.width := w, edWin.height := h
 } else {
-	beepFailure()
 	MsgBox("Elite Dangerous not running, please start the game and try again.")
+	beepFailure()
 	exitApp
 }
 activateEDWindow() {
@@ -383,7 +384,7 @@ initButtons(){
 	L("configuration started")
 	SetKeyDelay 1000, 100
 	activateEDWindow()
-	result := MsgBox("To initialize this script (wiping the old config),`n`n"
+	result := MsgBox("To initialize this script (wiping the old button config),`n`n"
 		"open up a station's commodities market`n`n"
 		"then click OK`n`n`n"
 		"or . . . click CANCEL to abort`n`n`n"
