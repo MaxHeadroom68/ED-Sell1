@@ -16,6 +16,9 @@ script in [AutoHotKey V2](https://www.autohotkey.com/docs/v2/howto/Install.htm)
 When run for the first time, there'll be a short setup process, to account for different screensize, scaling, colors, etc.
 It just needs you to click on a couple things.  Quick & painless.  Please do read everything carefully, and follow the instructions.
 
+(If you like pictures more than words, you can see where it'll want you to click
+[here](./docs/images/setup-click1.png) and [here](./docs/images/setup-click2.png).)
+
 If you need to re-run setup, you can hit `Ctl-Alt-F10`.
 Or delete the file `%AppData%\Sell1\config.ini` then restart the script.
 
