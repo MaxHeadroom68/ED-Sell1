@@ -16,6 +16,9 @@ script in [AutoHotKey V2](https://www.autohotkey.com/docs/v2/howto/Install.htm)
 When run for the first time, there'll be a short setup process, to account for different screensize, scaling, colors, etc.
 It just needs you to click on a couple things.  Quick & painless.  Please do read everything carefully, and follow the instructions.
 
+(If you like pictures more than words, you can see where it'll want you to click
+[here](./docs/images/setup-click1.png) and [here](./docs/images/setup-click2.png).)
+
 If you need to re-run setup, you can hit `Ctl-Alt-F10`.
 Or delete the file `%AppData%\Sell1\config.ini` then restart the script.
 
@@ -71,6 +74,7 @@ saleSize2ndKey=2			; Ctl-Alt-F7 will sell this many tons at a time
 minLogLevel=0				; 0 - debug (logs ~15 lines per sale);  1 - important stuff and a summary at the end
 logfileopenmode=w			; a - append to today's logfile;  w - clear out log file before each run
 optionExitGameAtEnd=0		; 1 - show a checkbox on the GUI; click it to exit the game when this load is done
+muteBeeps=0					; 1 - no bleep bloops.  (I don't blame you, the sound API in AHK is not great)
 maxTonsToSell=0				; if >0, will end the batch at this many tons
 notifyProgram=""			; a string to be Run() when we're done selling
 ```
