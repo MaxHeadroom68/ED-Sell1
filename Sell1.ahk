@@ -29,14 +29,16 @@
 ^!F8::smallSales(1)
 ^!F7::smallSales(config.saleSize2ndKey)		; SmallSales will take any number you like, but keep it small or it'll be slow.  change in config.ini, or just edit this here
 ^!F9:: Send("{" k.up " up}{" k.down " up}{" k.left " up}{" k.right " up}{" k.select " up}"), Lw("Reload"), beepReload(), Reload()  ; Reload the script  [shamelessly stolen from OB]
-^!F10::initButtons()	; ask where the buttons are, figure out the colors
+^!F10::initButtons()			; ask where the buttons are, figure out the colors
+^!F11::calibrateScaling()		; if you've changed your UI scaling, or changed resolution
 ^!F12::setTestMode(!testMode)	; toggle test mode
 ^!+F12::setFinishBatch() 		; we're done now.  helpful for testing, or if we just want to be finished in the middle of a real load
-Pause::togglePause()	; make sure to be on the SELL COMMODITY screen when you un-pause
+Pause::togglePause()			; make sure to be on the SELL COMMODITY screen when you un-pause
 #HotIf 
 
 k := {up: "w", down: "s", left: "a", right: "d", select: "Space", escape:"Escape", click: "LButton", cancel: "RButton"}	; see readKeysConfig() below to customize
 
+;TODO: after initButtons(), check that the button colors are distinct, to make sure the user clicked in the right places
 ;TODO: more graphics in README -- where to click, perhaps with transparency or animation to show "more/less info" overlap area
 ;TODO: gracefully handle end of batch when there are no more commodities listed  (uh... how?)
 ;TODO: optionally drop a .csv in config.logdir with everything from logAction() and prevAction{}
@@ -55,14 +57,15 @@ Lx("uhhh, everything's under control, situation normal")		; script starting up. 
 
 testMode := true			; set to true when you're getting set up, so we hit RMouse to cancel, rather than spacebar to actually sell the goods
 PauseOperation := false
-edWin := {x: 0, y: 0, width: 0, height: 0, hwnd: 0}											; Elite Dangerous window
 finishBatch := false		; when true, we'll behave as if we're finished with this load
+edWin := {x:0, y:0, width:0, height:0, hwnd:0}					; Elite Dangerous window
+calibrateScalingStep := 0										; used during calibrateScaling() and calibScalingClick()
 
 
 ; Configuration - store settings in %APPDATA%\SCRIPTNAME\config.ini
 config := {fileName:"config.ini", defaultSection:"Settings",
-	logFileOpenMode:"w", minLogLevel:0, saleSize2ndKey:2, maxTonsToSell:0, optionExitGameAtEnd:0, muteBeeps:0, notifyProgram:"", debugMode:0, version:"",					; there's probably some cool reflective way to DRY, but this works for now, and is clear
-	configVars2: ["logFileOpenMode", "minLogLevel", "saleSize2ndKey", "maxTonsToSell", "optionExitGameAtEnd", "muteBeeps", "notifyProgram", "debugMode", "version"]		; set now, logged after logging has started
+	logFileOpenMode:"w", minLogLevel:0, saleSize2ndKey:2, maxTonsToSell:0, optionExitGameAtEnd:0, muteBeeps:0, notifyProgram:"", scaleX:1.0, scaleY:1.0, debugMode:0, version:"",					; there's probably some cool reflective way to DRY, but this works for now, and is clear
+	configVars2: ["logFileOpenMode", "minLogLevel", "saleSize2ndKey", "maxTonsToSell", "optionExitGameAtEnd", "muteBeeps", "notifyProgram", "scaleX", "scaleY", "debugMode", "version"]				; set now, logged after logging has started
 }
 initConfig() {
 	config.appDir := A_ScriptDir
@@ -356,14 +359,17 @@ while (!buttonsAreInitialized()) {
 activateEDWindow()
 beepHello()
 
-; done with initializing things, generic functions, getting the user configured.  finally ready to start working
+; done with initializing things, generic functions, and building the UI.  finally ready to start working ...on figuring out where the buttons are on the user's screen
 
 ; Luminance = (0.2126 * R + 0.7152 * G + 0.0722 * B)
 requestMouseXY(btn, msg := "") {
 	activateEDWindow()
 	KeyWait "LButton", "D"
 	activateEDWindow()
-	MouseGetPos(&x, &y)
+	MouseGetPos(&wx, &wy)												; get mouse position in window coordinates
+	Ld("requestMouseXY() " msg " mouse window coords: " wx "," wy)
+	windowToGameCoords(wx, wy, &x, &y)									; convert to game coordinates, to account for UI scaling
+	Ld("requestMouseXY() " msg " mouse game coords: " x "," y)
 	sleep 200
 	MouseMove(edWin.width/2, edWin.height-30)	
 	btn.x := x
@@ -423,10 +429,13 @@ initButtons(){
 	activateEDWindow()
 	requestMouseXY(zeroButton(sellTab))
 	sellTab.cSFocus := PixelGetColor(sellTab.x, sellTab.y)
+	Ld("initButtons() selltab.cSFocus: " Format("{1:#06X}", sellTab.cSFocus) )
 	SendEvent("{" k.right "}")
 	sellTab.cSNoFocus := PixelGetColor(sellTab.x, sellTab.y)
+	Ld("initButtons() selltab.cSNoFocus: " Format("{1:#06X}", sellTab.cSNoFocus) )
 	SendEvent("{" k.select "}")
 	sellTab.cSNoFocusDim := PixelGetColor(sellTab.x, sellTab.y)
+	Ld("initButtons() selltab.cSNoFocusDim: " Format("{1:#06X}", sellTab.cSNoFocusDim) )
 	sleep 1000
 	SendEvent("{" k.cancel "}")
 
@@ -452,12 +461,16 @@ initButtons(){
 	requestMouseXY(zeroButton(sellButton))
 	initGui.Flash(false)
 	sellButton.cSFocusZero := PixelGetColor(sellButton.x, sellButton.y)
+	Ld("initButtons() sellButton.cSFocusZero: " Format("{1:#06X}", sellButton.cSFocusZero) )
 	SendEvent("{" k.up "}")
 	sellButton.cSNoFocusZero := PixelGetColor(sellButton.x, sellButton.y)
+	Ld("initButtons() sellButton.cSNoFocusZero: " Format("{1:#06X}", sellButton.cSNoFocusZero) )
 	SendEvent("{" k.right "}")
 	sellButton.cSNoFocus := PixelGetColor(sellButton.x, sellButton.y)
+	Ld("initButtons() sellButton.cSNoFocus: " Format("{1:#06X}", sellButton.cSNoFocus) )
 	SendEvent("{" k.down "}")
 	sellButton.cSFocus := PixelGetColor(sellButton.x, sellButton.y)
+	Ld("initButtons() sellButton.cSFocus: " Format("{1:#06X}", sellButton.cSFocus) )
 	sleep 1000
 	SendEvent("{" k.cancel "}")
 	setTestMode(true)			;might not already be true, if this isn't the first time
@@ -482,6 +495,76 @@ initButtons(){
 		"Enjoy your 1-ton selling adventures!")
 	return true
 }
+
+calibrateScaling(){		; ED does its own UI scaling, so we'll calibrate an in-game click vs a system click
+	global calibrateScalingStep, edWin
+	centerX := round(edWin.width/2), centerY := round(edWin.height/2)
+	calibrateScalingStep := 0
+	instrGui := Gui("+AlwaysOnTop +ToolWindow", "DPI Calibration Instructions")
+    instrGui.Add("Text", "w400 h150",
+		"DPI Scaling Calibration:`n`n"
+		"1. Position GAME cursor at a distinctive spot in Elite, out near a corner`n"
+		"2. Press Shift-Ctrl-Alt-F11 to capture game cursor position`n"
+		"3. Alt+Tab OUT to desktop (don't go back to Elite)`n"
+		"4. Position DESKTOP cursor at the SAME visual spot`n"
+		"5. Press Shift-Ctrl-Alt-F11 to capture system cursor position")
+	instrGui.Show("w420 h170")
+
+	HotIf																	; make sure our hotkey works no matter what window is active
+	calibHotKey := "^!+F11"													; Ctrl+Alt+Shift+F11 -- since this is a global hotkey, we're using something obscure
+	HotKey calibHotKey, calibScalingClick									; not bounded by a #HotIf (or HotIf), so it works no matter what window is active
+	loop {
+		Sleep(100)
+	} until (calibrateScalingStep = 2)										; wait until we've done both captures
+	HotKey calibHotKey, "off"												; since this wasn't local to ED, definitely turn it off to keep things tidy
+	instrGui.Hide()
+	MsgBox("Calibration complete!`nScale X: " config.scaleX "`nScale Y: " config.scaleY)
+	activateEDWindow()
+	return true
+}
+
+calibScalingClick(*){
+	global calibrateScalingStep, config, edWin
+	centerX := round(edWin.width/2), centerY := round(edWin.height/2)
+	static calibPointED := {x:0, y:0}
+	if (calibrateScalingStep = 0) {											; first time, in ED
+		MouseGetPos(&x, &y)
+		Ld("calibScalingClick() captured game cursor at window coords (" x "," y ")")
+		calibPointED.x := x-centerX, calibPointED.y := y-centerY
+		Ld("calibScalingClick() relative to window center: calibPointED=(" calibPointED.x "," calibPointED.y ")")
+		calibrateScalingStep := 1
+		ToolTip("Game cursor position captured at window coords (" x "," y ").`n"
+			"Alt+Tab OUT to desktop, position at same visual spot, press Shift-Ctrl-Alt-F11 again")
+        SetTimer(() => ToolTip(), -5000)
+	} else if (calibrateScalingStep = 1) {									; second time, on desktop
+		CoordMode("Mouse", "Screen")										; mouse coords are now relative to the screen, not the active window
+		MouseGetPos(&x, &y)
+		CoordMode("Mouse", "Window")										; put it back the way it was
+		Ld("calibScalingClick() captured system cursor at screen coords (" x "," y ")")
+		Ld("calibScalingClick() system cursor relative to ED window (" (x - edWin.x) "," (y - edWin.y) ")")
+		calibPointSys := {x:(x - edWin.x - centerX), y:(y - edWin.y - centerY)}
+		Ld("calibScalingClick() relative to window center: calibPointSys=(" calibPointSys.x "," calibPointSys.y ")")
+
+		config.scaleX := round((calibPointSys.x / calibPointED.x), 3)
+		config.scaleY := round((calibPointSys.y / calibPointED.y), 3)
+		Ld("calibScalingClick() scaleX=" config.scaleX " scaleY=" config.scaleY)
+		writeConfigVar("scaleX", config.scaleX)
+		writeConfigVar("scaleY", config.scaleY)
+		calibrateScalingStep := 2											; done with the second click, we're finished
+        ToolTip("System cursor position captured at window coords (" x "," y "). Calibration complete!")
+		SetTimer(() => ToolTip(), -3000)
+	} else {
+		Lw("calibScalingClick() ignoring extraneous call, already calibrated")
+	}
+}
+
+windowToGameCoords(x, y, &gx, &gy) {		; convert from window coords to game coords
+	global edWin, config
+	cx := x - edWin.width/2, cy := y - edWin.height/2						; convert from window to center-relative coords
+	gcx := round(cx * config.scaleX), gcy := round(cy * config.scaleY)		; apply scaling
+	gx := gcx + edWin.width/2, gy := gcy + edWin.height/2					; convert back to window coords
+}
+
 
 ; keep some statistics about each of the action steps, so we can see how long they take, how often they retry or fail, etc
 actionStats := 0	; map of button name, color name, seconds => total duration, min, max, count attempts 1..N

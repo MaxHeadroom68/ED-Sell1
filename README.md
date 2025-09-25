@@ -34,7 +34,9 @@ When you want to start selling:
 - quantity should be something like "720/720"
 - press `Ctl-Alt-F8` to start selling 1 ton at a time
 
-To pause, press `Pause`.  To resume (aka un-pause):
+To pause, press `Pause` and wait a couple seconds until that sale is done.
+
+To resume (aka un-pause):
 - get onto the SELL COMMODITY screen
 - press `Pause`
 
