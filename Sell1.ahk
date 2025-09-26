@@ -361,7 +361,10 @@ beepHello()
 
 ; done with initializing things, generic functions, and building the UI.  finally ready to start working ...on figuring out where the buttons are on the user's screen
 
-; Luminance = (0.2126 * R + 0.7152 * G + 0.0722 * B)
+luminance(color) {		; Luminance = (0.2126 * R + 0.7152 * G + 0.0722 * B)
+	return round(0.2126 * ((color >> 16) & 0xFF) + 0.7152 * ((color >> 8) & 0xFF) + 0.0722 * (color & 0xFF))
+}
+
 requestMouseXY(btn, msg := "") {
 	activateEDWindow()
 	KeyWait "LButton", "D"
@@ -375,7 +378,7 @@ requestMouseXY(btn, msg := "") {
 	btn.x := x
 	for i in [0, 1, -1, 2] {
 		val := PixelGetColor(btn.x, y+i)
-		lum := round(0.2126 * ((val >> 16) & 0xFF) + 0.7152 * ((val >> 8) & 0xFF) + 0.0722 * (val & 0xFF))
+		lum := luminance(val)
 		if (lum > btn.lum) {		; find the brightest pixel in the 4 pixels vertically stacked
 			btn.y := y+i
 			btn.val := val
@@ -429,13 +432,13 @@ initButtons(){
 	activateEDWindow()
 	requestMouseXY(zeroButton(sellTab))
 	sellTab.cSFocus := PixelGetColor(sellTab.x, sellTab.y)
-	Ld("initButtons() selltab.cSFocus: " Format("{1:#06X}", sellTab.cSFocus) )
+	Ld("initButtons() selltab.cSFocus:      " Format("{1:#06X}", sellTab.cSFocus) " lum: " luminance(sellTab.csFocus))
 	SendEvent("{" k.right "}")
 	sellTab.cSNoFocus := PixelGetColor(sellTab.x, sellTab.y)
-	Ld("initButtons() selltab.cSNoFocus: " Format("{1:#06X}", sellTab.cSNoFocus) )
+	Ld("initButtons() selltab.cSNoFocus:    " Format("{1:#06X}", sellTab.cSNoFocus) " lum: " luminance(sellTab.cSNoFocus))
 	SendEvent("{" k.select "}")
 	sellTab.cSNoFocusDim := PixelGetColor(sellTab.x, sellTab.y)
-	Ld("initButtons() selltab.cSNoFocusDim: " Format("{1:#06X}", sellTab.cSNoFocusDim) )
+	Ld("initButtons() selltab.cSNoFocusDim: " Format("{1:#06X}", sellTab.cSNoFocusDim) " lum: " luminance(sellTab.cSNoFocusDim))
 	sleep 1000
 	SendEvent("{" k.cancel "}")
 
@@ -461,16 +464,16 @@ initButtons(){
 	requestMouseXY(zeroButton(sellButton))
 	initGui.Flash(false)
 	sellButton.cSFocusZero := PixelGetColor(sellButton.x, sellButton.y)
-	Ld("initButtons() sellButton.cSFocusZero: " Format("{1:#06X}", sellButton.cSFocusZero) )
+	Ld("initButtons() sellButton.cSFocusZero:   " Format("{1:#06X}", sellButton.cSFocusZero)   " lum: " luminance(sellButton.cSFocusZero))
 	SendEvent("{" k.up "}")
 	sellButton.cSNoFocusZero := PixelGetColor(sellButton.x, sellButton.y)
-	Ld("initButtons() sellButton.cSNoFocusZero: " Format("{1:#06X}", sellButton.cSNoFocusZero) )
+	Ld("initButtons() sellButton.cSNoFocusZero: " Format("{1:#06X}", sellButton.cSNoFocusZero) " lum: " luminance(sellButton.cSNoFocusZero))
 	SendEvent("{" k.right "}")
 	sellButton.cSNoFocus := PixelGetColor(sellButton.x, sellButton.y)
-	Ld("initButtons() sellButton.cSNoFocus: " Format("{1:#06X}", sellButton.cSNoFocus) )
+	Ld("initButtons() sellButton.cSNoFocus:     " Format("{1:#06X}", sellButton.cSNoFocus)     " lum: " luminance(sellButton.cSNoFocus))
 	SendEvent("{" k.down "}")
 	sellButton.cSFocus := PixelGetColor(sellButton.x, sellButton.y)
-	Ld("initButtons() sellButton.cSFocus: " Format("{1:#06X}", sellButton.cSFocus) )
+	Ld("initButtons() sellButton.cSFocus:       " Format("{1:#06X}", sellButton.cSFocus)       " lum: " luminance(sellButton.cSFocus))
 	sleep 1000
 	SendEvent("{" k.cancel "}")
 	setTestMode(true)			;might not already be true, if this isn't the first time
@@ -503,7 +506,7 @@ calibrateScaling(){		; ED does its own UI scaling, so we'll calibrate an in-game
 	instrGui := Gui("+AlwaysOnTop +ToolWindow", "DPI Calibration Instructions")
     instrGui.Add("Text", "w400 h150",
 		"DPI Scaling Calibration:`n`n"
-		"1. Position GAME cursor at a distinctive spot in Elite, out near a corner`n"
+		"1. Position GAME cursor at a distinctive spot in a corner of the marketplace UI`n"
 		"2. Press Shift-Ctrl-Alt-F11 to capture game cursor position`n"
 		"3. Alt+Tab OUT to desktop (don't go back to Elite)`n"
 		"4. Position DESKTOP cursor at the SAME visual spot`n"
@@ -513,6 +516,7 @@ calibrateScaling(){		; ED does its own UI scaling, so we'll calibrate an in-game
 	HotIf																	; make sure our hotkey works no matter what window is active
 	calibHotKey := "^!+F11"													; Ctrl+Alt+Shift+F11 -- since this is a global hotkey, we're using something obscure
 	HotKey calibHotKey, calibScalingClick									; not bounded by a #HotIf (or HotIf), so it works no matter what window is active
+	activateEDWindow()
 	loop {
 		Sleep(100)
 	} until (calibrateScalingStep = 2)										; wait until we've done both captures
