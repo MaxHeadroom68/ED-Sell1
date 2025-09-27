@@ -250,6 +250,8 @@ if (edWin.hwnd := WinExist("ahk_exe EliteDangerous64.exe")){
 	WinActivate			; give ED focus, even though our window is always on top
 	WinGetPos(&x, &y, &w, &h)
 	edWin.x := x, edWin.y := y, edWin.width := w, edWin.height := h
+	edWin.centerX := round(edWin.width/2), edWin.centerY := round(edWin.height/2)
+	L("WinGetPos(): ED window at: " edWin.x "," edWin.y " size: " edWin.width "x" edWin.height " center: " edWin.centerX "x" edWin.centerY)
 } else {
 	MsgBox("Elite Dangerous not running, please start the game and try again.")
 	beepFailure()
@@ -501,7 +503,6 @@ initButtons(){
 
 calibrateScaling(){		; ED does its own UI scaling, so we'll calibrate an in-game click vs a system click
 	global calibrateScalingStep, edWin
-	centerX := round(edWin.width/2), centerY := round(edWin.height/2)
 	calibrateScalingStep := 0
 	instrGui := Gui("+AlwaysOnTop +ToolWindow", "DPI Calibration Instructions")
     instrGui.Add("Text", "w400 h150",
@@ -529,13 +530,12 @@ calibrateScaling(){		; ED does its own UI scaling, so we'll calibrate an in-game
 
 calibScalingClick(*){
 	global calibrateScalingStep, config, edWin
-	centerX := round(edWin.width/2), centerY := round(edWin.height/2)
 	static calibPointED := {x:0, y:0}
 	if (calibrateScalingStep = 0) {											; first time, in ED
 		MouseGetPos(&x, &y)
-		Ld("calibScalingClick() captured game cursor at window coords (" x "," y ")")
-		calibPointED.x := x-centerX, calibPointED.y := y-centerY
-		Ld("calibScalingClick() relative to window center: calibPointED=(" calibPointED.x "," calibPointED.y ")")
+		Ld("calibScalingClick(1) captured game cursor at window coords (" x "," y ")")
+		calibPointED.x := x-edWin.centerX, calibPointED.y := y-edWin.centerY
+		Ld("calibScalingClick(1) relative to window center: calibPointED=(" calibPointED.x "," calibPointED.y ")")
 		calibrateScalingStep := 1
 		ToolTip("Game cursor position captured at window coords (" x "," y ").`n"
 			"Alt+Tab OUT to desktop, position at same visual spot, press Shift-Ctrl-Alt-F11 again")
@@ -544,10 +544,10 @@ calibScalingClick(*){
 		CoordMode("Mouse", "Screen")										; mouse coords are now relative to the screen, not the active window
 		MouseGetPos(&x, &y)
 		CoordMode("Mouse", "Window")										; put it back the way it was
-		Ld("calibScalingClick() captured system cursor at screen coords (" x "," y ")")
-		Ld("calibScalingClick() system cursor relative to ED window (" (x - edWin.x) "," (y - edWin.y) ")")
-		calibPointSys := {x:(x - edWin.x - centerX), y:(y - edWin.y - centerY)}
-		Ld("calibScalingClick() relative to window center: calibPointSys=(" calibPointSys.x "," calibPointSys.y ")")
+		Ld("calibScalingClick(2) captured system cursor at screen coords (" x "," y ")")
+		Ld("calibScalingClick(2) system cursor relative to ED window (" (x - edWin.x) "," (y - edWin.y) ")")
+		calibPointSys := {x:(x - edWin.x - edWin.centerX), y:(y - edWin.y - edWin.centerY)}
+		Ld("calibScalingClick(2) relative to window center: calibPointSys=(" calibPointSys.x "," calibPointSys.y ")")
 
 		config.scaleX := round((calibPointSys.x / calibPointED.x), 3)
 		config.scaleY := round((calibPointSys.y / calibPointED.y), 3)
